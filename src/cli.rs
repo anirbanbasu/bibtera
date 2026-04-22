@@ -24,7 +24,7 @@ pub struct Cli {
 pub enum Commands {
     /// Transform BibTeX entries to files using a Tera template
     Transform(TransformArgs),
-    /// Display parsed information about BibTeX entries
+    /// Display BibTeX entry information available to Tera templates
     Info(InfoArgs),
 }
 

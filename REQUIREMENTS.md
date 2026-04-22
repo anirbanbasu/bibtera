@@ -2,7 +2,7 @@
 
 The following specify the functional and non-functional requirements for the project.
 
-**Requirements specification version**: _v2026-04-23-001_.
+**Requirements specification version**: _v2026-04-23-002_.
 
 ## Functional requirements
 
@@ -15,7 +15,7 @@ The following functional requirements are being improved iteratively as the proj
         1. Use a UUID7 representation with its 16-byte input from a SHAKE-128 hash of the BibTeX entry's key to generate a unique file name.
         2. Alternatively, slugify the BibTeX entry's key by replacing non-alphanumeric characters with underscores. The choice between these two approaches can be made configurable through a command-line option (i.e., `--file-name-strategy`, see CLI options).
 3. The application must provide a command-line interface for users to specify input files, output directories, and template files.
-    1. The CLI should expose two sub-commands: `transform` and `info`. The `transform` sub-command should be used for transforming BibTeX entries into files using Tera templates, while the `info` sub-command should be used for displaying information about the parsed BibTeX entries without generating any files.
+    1. The CLI should expose two sub-commands: `transform` and `info`. The `transform` sub-command should be used for transforming BibTeX entries into files using Tera templates, while the `info` sub-command should be used for displaying information about the parsed BibTeX entries without generating any files. The purpose of the `info` sub-command is to tell the user about the information that can be used in the Tera templates for rendering the output files.
     2. The `transform` sub-command should expose the following options:
         1. `--input` or `-i` (required): Path to the input BibTeX file.
         2. `--output` or `-o` (required): Path to the output directory where the generated files will be saved.
@@ -30,7 +30,7 @@ The following functional requirements are being improved iteratively as the proj
         1. `--input` or `-i` (optional): Path to the input BibTeX file.
         2. `--exclude` (optional): A comma-separated list of BibTeX entry keys to exclude from the information output. If specified, these entries will be excluded from the output, and all others will be included.
         3. `--include` (optional): A comma-separated list of BibTeX entry keys to include in the information output. If specified, only these entries will be included in the output, and all others will be ignored. Either `--exclude` or `--include` may be specified, but not both at the same time.
-        If one or more BibTeX entries are selected through the options above, the `info` sub-command should parse those entries and display the parsed information as a key-value map. If no entries can be selected or no options are provided, the `info` sub-command should display information for all BibTeX entry types and their fields as a key-value map of key-value maps where the keys in the outer map are the entry types and the keys in the inner maps are the field names.
+        If one or more BibTeX entries are selected through the options above, the `info` sub-command should parse those entries and display the parsed information as a key-value map of the parsed entries and their fields that are available to the Tera templates. If no entries can be selected or no options are provided, the `info` sub-command should display information as a key-value map of all BibTeX entry types and their corresponding fields that are available to the Tera templates.
     4. The CLI should expose a global option `--help` or `-h`: Display usage information and exit.
     5. The CLI should expose a global option `--version` or `-V`: Display version information and exit.
 4. The application must handle errors gracefully, providing informative error messages for issues such as invalid BibTeX entries, missing template files, and file I/O errors.

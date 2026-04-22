@@ -211,11 +211,31 @@ fn default_entry_type_field_map() -> BTreeMap<String, BTreeMap<String, String>> 
 
     let mut map = BTreeMap::new();
     for (entry_type, fields) in types {
-        let mut inner = BTreeMap::new();
-        for field in BTreeSet::from_iter(fields.into_iter()) {
-            inner.insert(field.to_string(), "string".to_string());
-        }
+        let inner = template_available_fields_for_type(&fields);
         map.insert(entry_type.to_string(), inner);
+    }
+
+    map
+}
+
+fn template_available_fields_for_type(fields: &[&str]) -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+
+    // Top-level keys available directly in Tera context.
+    map.insert("key".to_string(), "string".to_string());
+    map.insert("entry_type".to_string(), "string".to_string());
+    map.insert("title".to_string(), "string".to_string());
+    map.insert("authors".to_string(), "array<string>".to_string());
+    map.insert(
+        "author_parts".to_string(),
+        "array<{first:string,last:string,full:string}>".to_string(),
+    );
+    map.insert("year".to_string(), "string|null".to_string());
+    map.insert("fields".to_string(), "map<string,string>".to_string());
+
+    // Known type-specific BibTeX fields exposed under `fields`.
+    for field in BTreeSet::from_iter(fields.iter().copied()) {
+        map.insert(format!("fields.{}", field), "string".to_string());
     }
 
     map
@@ -232,7 +252,12 @@ mod tests {
         assert!(
             map.get("article")
                 .expect("article map")
-                .contains_key("author")
+                .contains_key("fields.author")
+        );
+        assert!(
+            map.get("article")
+                .expect("article map")
+                .contains_key("author_parts")
         );
     }
 }

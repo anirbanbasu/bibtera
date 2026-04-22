@@ -1,0 +1,308 @@
+//! BibTeX parsing module.
+//!
+//! This module provides functionality to parse BibTeX files using the BibLatex library.
+//! It extracts entry types, keys, authors, titles, and other metadata from BibTeX entries.
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use biblatex::{Bibliography, ChunksExt};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+/// Error types for BibTeX parsing operations
+#[derive(Error, Debug)]
+pub enum ParseError {
+    /// Error when reading the BibTeX file
+    #[error("Failed to read file: {0}")]
+    ReadError(#[from] std::io::Error),
+
+    /// Error when parsing BibTeX content
+    #[error("Failed to parse BibTeX content: {0}")]
+    Parse(String),
+
+    /// Error when no entries found in file
+    #[error("No BibTeX entries found in file: {0}")]
+    NoEntries(String),
+
+    /// Error when processing directory
+    #[error("Failed to process directory: {0}")]
+    DirectoryError(String),
+}
+
+/// Represents a single BibTeX entry with its metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BibTeXEntry {
+    /// The citation key (e.g., "smith2020machine")
+    pub key: String,
+
+    /// The entry type (article, book, inproceedings, etc.)
+    pub entry_type: String,
+
+    /// Authors/creators of the work
+    pub authors: Vec<String>,
+
+    /// Title of the work
+    pub title: String,
+
+    /// Publication year
+    pub year: Option<String>,
+
+    /// Additional fields (journal, publisher, volume, pages, etc.)
+    pub fields: HashMap<String, String>,
+}
+
+impl BibTeXEntry {
+    /// Create a new BibTeX entry from parsed data
+    pub fn new(key: String, entry_type: String, authors: Vec<String>, title: String) -> Self {
+        Self {
+            key,
+            entry_type,
+            authors,
+            title,
+            year: None,
+            fields: HashMap::new(),
+        }
+    }
+
+    /// Set the year field
+    pub fn with_year(mut self, year: String) -> Self {
+        self.year = Some(year);
+        self
+    }
+
+    /// Add a field to the entry
+    pub fn with_field(mut self, key: String, value: String) -> Self {
+        self.fields.insert(key, value);
+        self
+    }
+
+    /// Get a field value as a String
+    pub fn get_field(&self, field: &str) -> Option<&String> {
+        self.fields.get(field)
+    }
+}
+
+/// Parser for BibTeX files
+pub struct BibTeXParser;
+
+impl BibTeXParser {
+    /// Parse a single BibTeX file and return entries
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Vec<BibTeXEntry>> {
+        let path = path.as_ref();
+
+        // Read the file content
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read file: {}", path.display()))?;
+
+        Self::parse_str(&content)
+    }
+
+    /// Parse BibTeX entries from a source string
+    pub fn parse_str(src: &str) -> Result<Vec<BibTeXEntry>> {
+        // Parse using BibLatex
+        let bibliography =
+            Bibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
+
+        if bibliography.is_empty() {
+            return Err(ParseError::NoEntries("input".to_string()).into());
+        }
+
+        // Convert to our internal representation
+        let parsed_entries = bibliography
+            .into_iter()
+            .map(Self::convert_entry)
+            .collect::<Vec<BibTeXEntry>>();
+
+        Ok(parsed_entries)
+    }
+
+    /// Parse all BibTeX files in a directory
+    pub fn parse_directory<P: AsRef<Path>>(path: P, recursive: bool) -> Result<Vec<BibTeXEntry>> {
+        let path = path.as_ref();
+
+        if !path.exists() {
+            return Err(ParseError::DirectoryError(format!(
+                "Directory does not exist: {}",
+                path.display()
+            ))
+            .into());
+        }
+
+        if !path.is_dir() {
+            return Err(ParseError::DirectoryError(format!(
+                "Path is not a directory: {}",
+                path.display()
+            ))
+            .into());
+        }
+
+        let mut entries = Vec::new();
+
+        // Collect all .bib files
+        let bib_files = if recursive {
+            Self::collect_bib_files_recursive(path)?
+        } else {
+            Self::collect_bib_files_flat(path)?
+        };
+
+        // Parse each file
+        for file in bib_files {
+            match Self::parse_file(&file) {
+                Ok(file_entries) => entries.extend(file_entries),
+                Err(e) => {
+                    eprintln!("Warning: Failed to parse {}: {}", file.display(), e);
+                }
+            }
+        }
+
+        if entries.is_empty() {
+            return Err(ParseError::NoEntries(path.display().to_string()).into());
+        }
+
+        Ok(entries)
+    }
+
+    /// Collect .bib files from a directory (flat, non-recursive)
+    fn collect_bib_files_flat<P: AsRef<Path>>(path: P) -> Result<Vec<PathBuf>> {
+        let path = path.as_ref();
+        let mut files = Vec::new();
+
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "bib") {
+                files.push(path);
+            }
+        }
+
+        Ok(files)
+    }
+
+    /// Collect .bib files from a directory recursively
+    fn collect_bib_files_recursive<P: AsRef<Path>>(path: P) -> Result<Vec<PathBuf>> {
+        let mut files = Vec::new();
+        Self::collect_recursive(path.as_ref(), &mut files)?;
+        Ok(files)
+    }
+
+    /// Recursive helper to collect .bib files
+    fn collect_recursive<P: AsRef<Path>>(path: P, files: &mut Vec<PathBuf>) -> Result<()> {
+        let path = path.as_ref();
+
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "bib") {
+                files.push(path);
+            } else if path.is_dir() {
+                Self::collect_recursive(&path, files)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Convert BibLatex entry to our internal representation
+    fn convert_entry(entry: biblatex::Entry) -> BibTeXEntry {
+        let key = entry.key;
+        let entry_type = entry.entry_type.to_string();
+
+        // Extract authors
+        let authors = entry
+            .fields
+            .get("author")
+            .map(|authors| Self::parse_authors(authors))
+            .unwrap_or_default();
+
+        // Extract title
+        let title = entry
+            .fields
+            .get("title")
+            .map(|t| t.format_verbatim())
+            .unwrap_or_default();
+
+        // Extract year
+        let year = entry.fields.get("year").map(|y| y.format_verbatim());
+
+        // Build fields map with remaining fields
+        let mut fields = HashMap::new();
+        for (k, v) in entry.fields {
+            if k != "author" && k != "title" && k != "year" {
+                fields.insert(k, v.format_verbatim());
+            }
+        }
+
+        BibTeXEntry {
+            key,
+            entry_type,
+            authors,
+            title,
+            year,
+            fields,
+        }
+    }
+
+    /// Parse author field (can be "Last, First" or "First Last" format)
+    fn parse_authors(authors: &[biblatex::Spanned<biblatex::Chunk>]) -> Vec<String> {
+        let mut result = Vec::new();
+        let authors_text = authors.format_verbatim();
+
+        // Split by "and" to handle multiple authors
+        for author in authors_text.split(" and ") {
+            let author = author.trim();
+            if !author.is_empty() {
+                result.push(author.to_string());
+            }
+        }
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_authors_single() {
+        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+            biblatex::Chunk::Normal("John Doe".to_string()),
+        )]);
+        assert_eq!(authors, vec!["John Doe"]);
+    }
+
+    #[test]
+    fn test_parse_authors_multiple() {
+        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+            biblatex::Chunk::Normal("John Doe and Jane Smith".to_string()),
+        )]);
+        assert_eq!(authors.len(), 2);
+        assert!(authors[0] == "John Doe" || authors[0] == "Jane Smith");
+    }
+
+    #[test]
+    fn test_bibtex_entry_creation() {
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "Test Title".to_string(),
+        )
+        .with_year("2024".to_string())
+        .with_field("journal".to_string(), "Test Journal".to_string());
+
+        assert_eq!(entry.key, "test2024");
+        assert_eq!(entry.entry_type, "article");
+        assert_eq!(entry.authors.len(), 1);
+        assert_eq!(entry.year, Some("2024".to_string()));
+        assert_eq!(
+            entry.fields.get("journal"),
+            Some(&"Test Journal".to_string())
+        );
+    }
+}

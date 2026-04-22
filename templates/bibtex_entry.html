@@ -1,0 +1,17 @@
+<article>
+    <header>
+        <h1>{{ title }}</h1>
+        <p><strong>Authors</strong>: {{ authors | join(sep=", ") }}</p>
+        <p><strong>Year</strong>: {{ year | default(value="Unknown") }}</p>
+        <p><strong>Type</strong>: {{ entry_type }}</p>
+    </header>
+
+    {% if fields %}
+    <dl>
+        {% for key, value in fields %}
+        <dt><strong>{{ key }}</strong></dt>
+        <dd>{{ value }}</dd>
+        {% endfor %}
+    </dl>
+    {% endif %}
+</article>

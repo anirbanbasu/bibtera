@@ -7,3 +7,32 @@ edition = "2024"
 repository = "https://github.com/anirbanbasu/bibtera"
 
 [dependencies]
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive"] }
+
+# Templating engine
+tera = "1.20"
+
+# BibTeX parsing
+biblatex = "0.11"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# JSON serialization for JSON output
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Path utilities
+pathdiff = "0.2"
+
+# Directory paths (config files)
+dirs = "5.0"
+
+# Async runtime for future performance improvements
+tokio = { version = "1.0", features = ["fs", "rt"], optional = true }
+
+[features]
+default = []
+async = ["dep:tokio"]

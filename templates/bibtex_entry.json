@@ -1,0 +1,8 @@
+{
+  "key": "{{ key }}",
+  "entry_type": "{{ entry_type }}",
+  "authors": [{% for author in authors %}"{{ author }}"{% if not loop.last %}, {% endif %}{% endfor %}],
+  "title": "{{ title }}",
+  "year": "{{ year | default(value='') }}",
+  "fields": { {% for key, value in fields %}"{{ key }}": "{{ value }}"{% if not loop.last %}, {% endif %}{% endfor %} }
+}

@@ -1,97 +1,59 @@
 //! Configuration management module.
 //!
-//! This module provides configuration management for the BibTeX converter,
-//! including command-line arguments and validation.
+//! This module provides validated runtime configuration derived from CLI arguments.
 
-use std::fs;
+use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::cli::{FileNameStrategy as CliFileNameStrategy, InfoArgs, TransformArgs};
 
 /// Error types for configuration operations
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    /// Error when reading configuration file
-    #[error("Failed to read configuration file: {0}")]
-    Read(String),
-
-    /// Error when parsing configuration file
-    #[error("Failed to parse configuration file: {0}")]
-    Parse(String),
-
-    /// Error when writing configuration file
-    #[error("Failed to write configuration file: {0}")]
-    Write(String),
-
     /// Error when configuration is invalid
     #[error("Invalid configuration: {0}")]
     Validation(String),
 }
 
-/// Application configuration
+/// Output filename strategy
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum FileNameStrategy {
+    /// UUID7 derived from SHAKE-128 output bytes
+    #[default]
+    Uuid7,
+    /// Slugify the key by replacing non-alphanumeric characters with underscores
+    Slugify,
+}
+
+impl From<CliFileNameStrategy> for FileNameStrategy {
+    fn from(value: CliFileNameStrategy) -> Self {
+        match value {
+            CliFileNameStrategy::Uuid7 => Self::Uuid7,
+            CliFileNameStrategy::Slugify => Self::Slugify,
+        }
+    }
+}
+
+/// Shared key filtering configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Config {
-    /// Input BibTeX file path
-    #[serde(default)]
-    pub input: Option<String>,
-
-    /// Output directory path where generated files will be saved
-    #[serde(default)]
-    pub output: Option<String>,
-
-    /// Path to Tera template file used for formatting
-    #[serde(default)]
-    pub template: Option<String>,
-
+pub struct FilterConfig {
     /// List of BibTeX entry keys to exclude from processing
     #[serde(default)]
     pub exclude: Vec<String>,
-
-    /// List of BibTeX entry keys to include in processing (if set, only these entries are processed)
+    /// List of BibTeX entry keys to include in processing
     #[serde(default)]
     pub include: Vec<String>,
-
-    /// Perform a dry run without generating files
-    #[serde(default)]
-    pub dry_run: bool,
-
-    /// Force overwrite of existing files without prompting
-    #[serde(default)]
-    pub overwrite: bool,
-
-    /// Enable verbose output
-    #[serde(default)]
-    pub verbose: bool,
 }
 
-impl Config {
-    /// Create a new config with default values
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl FilterConfig {
+    /// Build filter config from optional include/exclude CSV strings.
+    pub fn from_options(exclude: Option<String>, include: Option<String>) -> Result<Self> {
+        let exclude = parse_csv_list(exclude);
+        let include = parse_csv_list(include);
 
-    /// Create config from command-line arguments
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_cli(
-        input: Option<String>,
-        output: Option<String>,
-        template: Option<String>,
-        exclude: Option<String>,
-        include: Option<String>,
-        dry_run: bool,
-        overwrite: bool,
-        verbose: bool,
-    ) -> Result<Self> {
-        let exclude: Vec<String> = exclude
-            .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
-            .unwrap_or_default();
-
-        let include: Vec<String> = include
-            .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
-            .unwrap_or_default();
-
-        // Validate that exclude and include are mutually exclusive
         if !exclude.is_empty() && !include.is_empty() {
             return Err(ConfigError::Validation(
                 "Cannot specify both --exclude and --include at the same time".to_string(),
@@ -99,103 +61,147 @@ impl Config {
             .into());
         }
 
-        Ok(Self {
-            input,
-            output,
-            template,
-            exclude,
-            include,
-            dry_run,
-            overwrite,
-            verbose,
-        })
+        Ok(Self { exclude, include })
     }
 
-    /// Load config from a JSON file
-    pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        let path = path.as_ref();
+    /// Check if an entry key should be included.
+    pub fn should_include_entry(&self, key: &str) -> bool {
+        if !self.include.is_empty() {
+            return self.include.iter().any(|k| k == key);
+        }
 
-        let content =
-            fs::read_to_string(path).context(ConfigError::Read(path.display().to_string()))?;
+        if !self.exclude.is_empty() {
+            return !self.exclude.iter().any(|k| k == key);
+        }
 
-        let config: Config = serde_json::from_str(&content)
-            .context(ConfigError::Parse(path.display().to_string()))?;
+        true
+    }
+}
 
-        Ok(config)
+/// Runtime config for `transform`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransformConfig {
+    /// Input BibTeX file path
+    pub input: String,
+    /// Output directory path
+    pub output: String,
+    /// Tera template path
+    pub template: String,
+    /// Include/exclude filtering
+    pub filter: FilterConfig,
+    /// Dry run mode
+    pub dry_run: bool,
+    /// Force overwrite mode
+    pub overwrite: bool,
+    /// Filename strategy
+    pub file_name_strategy: FileNameStrategy,
+    /// Verbose mode
+    pub verbose: bool,
+}
+
+impl TransformConfig {
+    /// Create and validate transform config from CLI args.
+    pub fn from_args(args: TransformArgs) -> Result<Self> {
+        let cfg = Self {
+            input: args.input,
+            output: args.output,
+            template: args.template,
+            filter: FilterConfig::from_options(args.exclude, args.include)?,
+            dry_run: args.dry_run,
+            overwrite: args.overwrite,
+            file_name_strategy: args.file_name_strategy.into(),
+            verbose: args.verbose,
+        };
+
+        cfg.validate()?;
+        Ok(cfg)
     }
 
-    /// Save config to a JSON file
-    pub fn save_to_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
-        let path = path.as_ref();
-
-        let content = serde_json::to_string_pretty(self)
-            .context(ConfigError::Write("Failed to serialize config".to_string()))?;
-
-        fs::write(path, &content).context(ConfigError::Write(path.display().to_string()))?;
-
-        Ok(())
-    }
-
-    /// Validate the configuration
+    /// Validate transform config.
     pub fn validate(&self) -> Result<()> {
-        // Check input is provided
-        if self.input.is_none() {
-            return Err(
-                ConfigError::Validation("Input file is required (--input/-i)".to_string()).into(),
-            );
-        }
-
-        // Check output is provided
-        if self.output.is_none() {
-            return Err(ConfigError::Validation(
-                "Output directory is required (--output/-o)".to_string(),
-            )
+        if !self.input.ends_with(".bib") {
+            return Err(ConfigError::Validation(format!(
+                "Input must be a .bib file: {}",
+                self.input
+            ))
             .into());
         }
 
-        // Check template is provided
-        if self.template.is_none() {
-            return Err(ConfigError::Validation(
-                "Template file is required (--template/-t)".to_string(),
-            )
+        if !Path::new(&self.input).exists() {
+            return Err(ConfigError::Validation(format!(
+                "Input path does not exist: {}",
+                self.input
+            ))
             .into());
         }
 
-        // Validate input path exists
-        if let Some(input) = &self.input
-            && !std::path::Path::new(input).exists()
-        {
-            return Err(
-                ConfigError::Validation(format!("Input path does not exist: {}", input)).into(),
-            );
-        }
-
-        // Validate template path exists
-        if let Some(template) = &self.template
-            && !std::path::Path::new(template).exists()
-        {
+        if !Path::new(&self.template).exists() {
             return Err(ConfigError::Validation(format!(
                 "Template path does not exist: {}",
-                template
+                self.template
             ))
             .into());
         }
 
         Ok(())
     }
+}
 
-    /// Check if an entry key should be included
-    pub fn should_include_entry(&self, key: &str) -> bool {
-        if !self.include.is_empty() {
-            return self.include.contains(&key.to_string());
-        }
+/// Runtime config for `info`
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct InfoConfig {
+    /// Optional input BibTeX file path
+    pub input: Option<String>,
+    /// Include/exclude filtering
+    pub filter: FilterConfig,
+}
 
-        if !self.exclude.is_empty() {
-            return !self.exclude.contains(&key.to_string());
-        }
+impl InfoConfig {
+    /// Create and validate info config from CLI args.
+    pub fn from_args(args: InfoArgs) -> Result<Self> {
+        let cfg = Self {
+            input: args.input,
+            filter: FilterConfig::from_options(args.exclude, args.include)?,
+        };
 
-        true
+        cfg.validate()?;
+        Ok(cfg)
     }
+
+    /// Validate info config.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(input) = &self.input {
+            if !input.ends_with(".bib") {
+                return Err(ConfigError::Validation(format!(
+                    "Input must be a .bib file: {}",
+                    input
+                ))
+                .into());
+            }
+
+            if !Path::new(input).exists() {
+                return Err(ConfigError::Validation(format!(
+                    "Input path does not exist: {}",
+                    input
+                ))
+                .into());
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn parse_csv_list(value: Option<String>) -> Vec<String> {
+    value
+        .map(|s| {
+            s.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -203,76 +209,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_config() {
-        let config = Config::default();
-        assert_eq!(config.verbose, false);
-        assert_eq!(config.dry_run, false);
-        assert!(config.exclude.is_empty());
-        assert!(config.include.is_empty());
-    }
-
-    #[test]
-    fn test_should_include_entry_no_filters() {
-        let config = Config::default();
-        assert!(config.should_include_entry("key1"));
-        assert!(config.should_include_entry("key2"));
-    }
-
-    #[test]
-    fn test_should_include_entry_with_include() {
-        let config = Config {
-            include: vec!["key1".to_string(), "key2".to_string()],
+    fn test_filter_include() {
+        let filter = FilterConfig {
+            include: vec!["a".to_string()],
             ..Default::default()
         };
-        assert!(config.should_include_entry("key1"));
-        assert!(config.should_include_entry("key2"));
-        assert!(!config.should_include_entry("key3"));
+        assert!(filter.should_include_entry("a"));
+        assert!(!filter.should_include_entry("b"));
     }
 
     #[test]
-    fn test_should_include_entry_with_exclude() {
-        let config = Config {
-            exclude: vec!["key1".to_string()],
+    fn test_filter_exclude() {
+        let filter = FilterConfig {
+            exclude: vec!["a".to_string()],
             ..Default::default()
         };
-        assert!(!config.should_include_entry("key1"));
-        assert!(config.should_include_entry("key2"));
+        assert!(!filter.should_include_entry("a"));
+        assert!(filter.should_include_entry("b"));
     }
 
     #[test]
-    fn test_from_cli_exclude_and_include_mutually_exclusive() {
-        let result = Config::from_cli(
-            Some("input.bib".to_string()),
-            Some("output".to_string()),
-            Some("template.md".to_string()),
-            Some("key1,key2".to_string()),
-            Some("key3,key4".to_string()),
-            false,
-            false,
-            false,
-        );
-
+    fn test_filter_mutually_exclusive() {
+        let result = FilterConfig::from_options(Some("a".to_string()), Some("b".to_string()));
         assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Cannot specify both --exclude and --include"));
-    }
-
-    #[test]
-    fn test_validate_config_requires_all_fields() {
-        let config = Config::default();
-        assert!(config.validate().is_err());
-
-        let mut config = Config {
-            input: Some("input.bib".to_string()),
-            ..Default::default()
-        };
-        assert!(config.validate().is_err());
-
-        config.output = Some("output".to_string());
-        assert!(config.validate().is_err());
-
-        config.template = Some("template.md".to_string());
-        // This will still fail because the files don't exist
-        assert!(config.validate().is_err());
     }
 }

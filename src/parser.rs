@@ -44,6 +44,9 @@ pub struct BibTeXEntry {
     /// Authors/creators of the work
     pub authors: Vec<String>,
 
+    /// Structured author name parts for template rendering
+    pub author_parts: Vec<AuthorName>,
+
     /// Title of the work
     pub title: String,
 
@@ -54,13 +57,30 @@ pub struct BibTeXEntry {
     pub fields: HashMap<String, String>,
 }
 
+/// Structured representation of an author name.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthorName {
+    /// Given name(s)
+    pub first: String,
+    /// Family name
+    pub last: String,
+    /// Normalized full name
+    pub full: String,
+}
+
 impl BibTeXEntry {
     /// Create a new BibTeX entry from parsed data
     pub fn new(key: String, entry_type: String, authors: Vec<String>, title: String) -> Self {
+        let author_parts = authors
+            .iter()
+            .map(|a| Self::normalize_author(a))
+            .collect::<Vec<_>>();
+
         Self {
             key,
             entry_type,
             authors,
+            author_parts,
             title,
             year: None,
             fields: HashMap::new(),
@@ -82,6 +102,10 @@ impl BibTeXEntry {
     /// Get a field value as a String
     pub fn get_field(&self, field: &str) -> Option<&String> {
         self.fields.get(field)
+    }
+
+    fn normalize_author(author: &str) -> AuthorName {
+        BibTeXParser::normalize_author_name(author)
     }
 }
 
@@ -213,11 +237,15 @@ impl BibTeXParser {
         let entry_type = entry.entry_type.to_string();
 
         // Extract authors
-        let authors = entry
+        let author_parts = entry
             .fields
             .get("author")
             .map(|authors| Self::parse_authors(authors))
             .unwrap_or_default();
+        let authors = author_parts
+            .iter()
+            .map(|a| a.full.clone())
+            .collect::<Vec<_>>();
 
         // Extract title
         let title = entry
@@ -241,6 +269,7 @@ impl BibTeXParser {
             key,
             entry_type,
             authors,
+            author_parts,
             title,
             year,
             fields,
@@ -248,7 +277,7 @@ impl BibTeXParser {
     }
 
     /// Parse author field (can be "Last, First" or "First Last" format)
-    fn parse_authors(authors: &[biblatex::Spanned<biblatex::Chunk>]) -> Vec<String> {
+    fn parse_authors(authors: &[biblatex::Spanned<biblatex::Chunk>]) -> Vec<AuthorName> {
         let mut result = Vec::new();
         let authors_text = authors.format_verbatim();
 
@@ -256,11 +285,44 @@ impl BibTeXParser {
         for author in authors_text.split(" and ") {
             let author = author.trim();
             if !author.is_empty() {
-                result.push(author.to_string());
+                result.push(Self::normalize_author_name(author));
             }
         }
 
         result
+    }
+
+    fn normalize_author_name(author: &str) -> AuthorName {
+        let trimmed = author.trim();
+
+        if let Some((last, first)) = trimmed.split_once(',') {
+            let first = first.trim().to_string();
+            let last = last.trim().to_string();
+            let full = if first.is_empty() {
+                last.clone()
+            } else if last.is_empty() {
+                first.clone()
+            } else {
+                format!("{} {}", first, last)
+            };
+            return AuthorName { first, last, full };
+        }
+
+        let parts = trimmed.split_whitespace().collect::<Vec<_>>();
+        if parts.len() <= 1 {
+            let first = trimmed.to_string();
+            return AuthorName {
+                first: first.clone(),
+                last: String::new(),
+                full: first,
+            };
+        }
+
+        let last = parts.last().unwrap_or(&"").to_string();
+        let first = parts[..parts.len() - 1].join(" ");
+        let full = format!("{} {}", first, last).trim().to_string();
+
+        AuthorName { first, last, full }
     }
 }
 
@@ -273,7 +335,10 @@ mod tests {
         let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
             biblatex::Chunk::Normal("John Doe".to_string()),
         )]);
-        assert_eq!(authors, vec!["John Doe"]);
+        assert_eq!(authors.len(), 1);
+        assert_eq!(authors[0].full, "John Doe");
+        assert_eq!(authors[0].first, "John");
+        assert_eq!(authors[0].last, "Doe");
     }
 
     #[test]
@@ -282,7 +347,18 @@ mod tests {
             biblatex::Chunk::Normal("John Doe and Jane Smith".to_string()),
         )]);
         assert_eq!(authors.len(), 2);
-        assert!(authors[0] == "John Doe" || authors[0] == "Jane Smith");
+        assert!(authors[0].full == "John Doe" || authors[0].full == "Jane Smith");
+    }
+
+    #[test]
+    fn test_parse_authors_last_first() {
+        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+            biblatex::Chunk::Normal("Doe, John".to_string()),
+        )]);
+        assert_eq!(authors.len(), 1);
+        assert_eq!(authors[0].first, "John");
+        assert_eq!(authors[0].last, "Doe");
+        assert_eq!(authors[0].full, "John Doe");
     }
 
     #[test]

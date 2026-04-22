@@ -7,6 +7,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use sha3::Shake128;
+use sha3::digest::{ExtendableOutput, Update, XofReader};
+use uuid::Uuid;
+
+use crate::config::FileNameStrategy;
 
 /// Securely read a file, preventing path traversal attacks
 pub fn safe_read<P: AsRef<Path>>(path: P) -> Result<String> {
@@ -193,16 +198,53 @@ pub fn relative_path<P1: AsRef<Path>, P2: AsRef<Path>>(from: P1, to: P2) -> Path
     pathdiff::diff_paths(to.as_ref(), from.as_ref()).unwrap_or_else(|| to.as_ref().to_path_buf())
 }
 
-/// Generate a unique filename from a BibTeX entry key using SHA-256 hash in hexadecimal format
-pub fn generate_unique_filename(key: &str, extension: &str) -> String {
-    use sha2::{Digest, Sha256};
+/// Generate output filename from a BibTeX key using the requested strategy.
+pub fn generate_output_filename(key: &str, strategy: FileNameStrategy, extension: &str) -> String {
+    let stem = match strategy {
+        FileNameStrategy::Uuid7 => uuid7_from_key(key),
+        FileNameStrategy::Slugify => slugify_key(key),
+    };
 
-    let mut hasher = Sha256::new();
+    format!("{}.{}", stem, extension)
+}
+
+/// Build a UUID7 string from 16 bytes sourced from SHAKE-128(key).
+fn uuid7_from_key(key: &str) -> String {
+    let mut hasher = Shake128::default();
     hasher.update(key.as_bytes());
-    let hash_result = hasher.finalize();
-    let hash_hex = format!("{:x}", hash_result);
 
-    format!("{}.{}", hash_hex, extension)
+    let mut reader = hasher.finalize_xof();
+    let mut bytes = [0u8; 16];
+    reader.read(&mut bytes);
+
+    // Apply UUIDv7 version and RFC4122 variant bits.
+    bytes[6] = (bytes[6] & 0x0f) | 0x70;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    Uuid::from_bytes(bytes).hyphenated().to_string()
+}
+
+/// Replace non-alphanumeric characters with underscores.
+fn slugify_key(key: &str) -> String {
+    let mut out = String::new();
+    let mut prev_underscore = false;
+
+    for ch in key.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            prev_underscore = false;
+        } else if !prev_underscore {
+            out.push('_');
+            prev_underscore = true;
+        }
+    }
+
+    let out = out.trim_matches('_').to_string();
+    if out.is_empty() {
+        "entry".to_string()
+    } else {
+        out
+    }
 }
 
 #[cfg(test)]
@@ -278,5 +320,18 @@ mod tests {
         let files = find_files_with_extension("/tmp", "nonexistent_ext_xyz");
         assert!(files.is_ok());
         assert!(files.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_generate_output_filename_slugify() {
+        let name = generate_output_filename("foo/bar:baz", FileNameStrategy::Slugify, "md");
+        assert_eq!(name, "foo_bar_baz.md");
+    }
+
+    #[test]
+    fn test_generate_output_filename_uuid7() {
+        let name = generate_output_filename("test-key", FileNameStrategy::Uuid7, "txt");
+        assert!(name.ends_with(".txt"));
+        assert_eq!(name.matches('-').count(), 4);
     }
 }

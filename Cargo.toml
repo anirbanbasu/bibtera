@@ -30,8 +30,11 @@ pathdiff = "0.2"
 # Directory paths (config files)
 dirs = "5.0"
 
-# SHA-256 hashing for unique filenames
-sha2 = "0.10"
+# SHAKE-128 hashing for deterministic filename bytes
+sha3 = "0.10"
+
+# UUID formatting for uuid7 filename strategy
+uuid = "1.18"
 
 # Async runtime for future performance improvements
 tokio = { version = "1.0", features = ["fs", "rt"], optional = true }

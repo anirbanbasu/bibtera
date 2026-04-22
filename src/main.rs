@@ -1,33 +1,15 @@
-//! BibTeX to Markdown Converter
-//!
-//! This application parses BibTeX entries and generates output in any text-based format
-//! using customizable Tera templates. The generated output can be used by static site
-//! generators like Zola.
-//!
-//! # Example
-//!
-//! ```bash
-//! # Convert a BibTeX file using a template
-//! bibtera -i citations.bib -o output/ -t template.md
-//!
-//! # Use include to process only specific entries
-//! bibtera -i citations.bib -o output/ -t template.md --include key1,key2
-//!
-//! # Use exclude to skip specific entries
-//! bibtera -i citations.bib -o output/ -t template.md --exclude key1
-//!
-//! # Perform a dry run to see what would be generated
-//! bibtera -i citations.bib -o output/ -t template.md --dry-run
-//! ```
+//! BibTeX converter CLI entry point.
 
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use bibtera::cli::Cli;
-use bibtera::config::Config;
+use bibtera::cli::{Cli, Commands};
+use bibtera::config::{InfoConfig, TransformConfig};
 use bibtera::parser::BibTeXParser;
 use bibtera::template::TemplateEngine;
 use bibtera::utils;
@@ -42,54 +24,37 @@ fn main() {
     }
 }
 
-/// Run the main application logic
 fn run() -> Result<()> {
-    // Parse command-line arguments
     let cli = Cli::parse();
 
-    // Create configuration from CLI arguments
-    let config = Config::from_cli(
-        cli.input,
-        cli.output,
-        cli.template,
-        cli.exclude,
-        cli.include,
-        cli.dry_run,
-        cli.overwrite,
-        cli.verbose,
-    )?;
+    match cli.command {
+        Commands::Transform(args) => {
+            let config = TransformConfig::from_args(args)?;
+            run_transform(config)
+        }
+        Commands::Info(args) => {
+            let config = InfoConfig::from_args(args)?;
+            run_info(config)
+        }
+    }
+}
 
-    // Initialize logger (if verbose)
+fn run_transform(config: TransformConfig) -> Result<()> {
     if config.verbose {
-        eprintln!("BibTeX Converter v0.1.0");
         eprintln!("Configuration: {:?}", config);
     }
 
-    // Validate configuration
-    config.validate().context("Invalid configuration")?;
-
-    // Initialize the template engine
     let mut template_engine =
         TemplateEngine::new().context("Failed to initialize template engine")?;
+    template_engine
+        .add_template(&config.template)
+        .context("Failed to load template")?;
 
-    // Load custom template if specified
-    if let Some(template_path) = &config.template {
-        template_engine
-            .add_template(template_path)
-            .context("Failed to load custom template")?;
-        if config.verbose {
-            eprintln!("Loaded template: {}", template_path);
-        }
-    }
-
-    // Parse BibTeX entries
-    let entries = parse_bibtex(&config)?;
-
-    // Filter entries based on include/exclude
-    let filtered_entries: Vec<_> = entries
+    let entries = BibTeXParser::parse_file(&config.input).context("Failed to parse BibTeX file")?;
+    let filtered_entries = entries
         .iter()
-        .filter(|entry| config.should_include_entry(&entry.key))
-        .collect();
+        .filter(|entry| config.filter.should_include_entry(&entry.key))
+        .collect::<Vec<_>>();
 
     if config.verbose {
         eprintln!(
@@ -99,7 +64,6 @@ fn run() -> Result<()> {
         );
     }
 
-    // Render entries to individual files
     render_entries(&config, &template_engine, &filtered_entries)?;
 
     if config.verbose {
@@ -109,48 +73,31 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-/// Parse BibTeX entries from input file
-fn parse_bibtex(config: &Config) -> Result<Vec<bibtera::parser::BibTeXEntry>> {
-    let input = config.input.as_ref().context("Input is required")?;
-
-    if !input.ends_with(".bib") {
-        anyhow::bail!("Input must be a .bib file: {}", input);
-    }
-
-    BibTeXParser::parse_file(input)
-}
-
-/// Render entries to individual output files
 fn render_entries(
-    config: &Config,
+    config: &TransformConfig,
     template_engine: &TemplateEngine,
     entries: &[&bibtera::parser::BibTeXEntry],
 ) -> Result<()> {
-    let output_dir = config
-        .output
-        .as_ref()
-        .context("Output directory is required")?;
-    let template_path = config.template.as_ref().context("Template is required")?;
-
-    // Get file extension from template file
     let template_extension =
-        utils::extension(template_path).context("Template file must have an extension")?;
+        utils::extension(&config.template).context("Template file must have an extension")?;
 
-    // Create output directory if it doesn't exist
     if !config.dry_run {
-        std::fs::create_dir_all(output_dir).context("Failed to create output directory")?;
+        std::fs::create_dir_all(&config.output).context("Failed to create output directory")?;
     }
 
-    let template_name = std::path::Path::new(template_path)
+    let template_name = std::path::Path::new(&config.template)
         .file_stem()
         .and_then(|name| name.to_str())
         .context("Invalid template path")?;
 
-    // Process each entry
+    // Sequential processing keeps output order predictable based on input order.
     for entry in entries {
-        // Generate unique filename using SHA-256 hash of the key
-        let filename = utils::generate_unique_filename(&entry.key, &template_extension);
-        let output_path = PathBuf::from(output_dir).join(&filename);
+        let filename = utils::generate_output_filename(
+            &entry.key,
+            config.file_name_strategy,
+            &template_extension,
+        );
+        let output_path = PathBuf::from(&config.output).join(&filename);
 
         if config.verbose {
             eprintln!("Processing: {} -> {}", entry.key, filename);
@@ -161,32 +108,117 @@ fn render_entries(
             continue;
         }
 
-        // Check if file exists and handle overwrite flag
-        if output_path.exists() && !config.overwrite {
-            eprintln!(
-                "Warning: File already exists, skipping: {}",
-                output_path.display()
-            );
+        if output_path.exists() && !config.overwrite && !confirm_overwrite(&output_path)? {
+            eprintln!("Warning: Skipped existing file: {}", output_path.display());
             continue;
         }
 
-        // Render the entry
         let rendered = template_engine
             .render_entry(template_name, entry)
-            .context(format!("Failed to render entry: {}", entry.key))?;
+            .with_context(|| format!("Failed to render entry: {}", entry.key))?;
 
-        // Write to file
-        utils::safe_write(&output_path, &rendered).context(format!(
-            "Failed to write output file: {}",
-            output_path.display()
-        ))?;
-
-        if config.verbose {
-            eprintln!("Written: {}", output_path.display());
-        }
+        utils::safe_write(&output_path, rendered.as_bytes())
+            .with_context(|| format!("Failed to write output file: {}", output_path.display()))?;
     }
 
     Ok(())
+}
+
+fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
+    print!("File {} exists. Overwrite? [y/N]: ", path.display());
+    io::stdout().flush().context("Failed to flush stdout")?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .context("Failed to read user confirmation")?;
+
+    let answer = input.trim().to_lowercase();
+    Ok(answer == "y" || answer == "yes")
+}
+
+fn run_info(config: InfoConfig) -> Result<()> {
+    if let Some(input) = &config.input {
+        let entries = BibTeXParser::parse_file(input).context("Failed to parse BibTeX file")?;
+        let selected = entries
+            .iter()
+            .filter(|entry| config.filter.should_include_entry(&entry.key))
+            .collect::<Vec<_>>();
+
+        if !selected.is_empty() {
+            let mut by_key = BTreeMap::new();
+            for entry in selected {
+                by_key.insert(&entry.key, entry);
+            }
+
+            println!("{}", serde_json::to_string_pretty(&by_key)?);
+            return Ok(());
+        }
+    }
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&default_entry_type_field_map())?
+    );
+    Ok(())
+}
+
+fn default_entry_type_field_map() -> BTreeMap<String, BTreeMap<String, String>> {
+    let types = vec![
+        (
+            "article",
+            vec![
+                "author", "title", "journal", "year", "volume", "number", "pages",
+            ],
+        ),
+        (
+            "book",
+            vec![
+                "author",
+                "editor",
+                "title",
+                "publisher",
+                "year",
+                "address",
+                "edition",
+            ],
+        ),
+        (
+            "inproceedings",
+            vec!["author", "title", "booktitle", "year", "pages", "publisher"],
+        ),
+        (
+            "incollection",
+            vec!["author", "title", "booktitle", "publisher", "year", "pages"],
+        ),
+        (
+            "phdthesis",
+            vec!["author", "title", "school", "year", "address"],
+        ),
+        (
+            "mastersthesis",
+            vec!["author", "title", "school", "year", "address"],
+        ),
+        (
+            "techreport",
+            vec!["author", "title", "institution", "year", "number"],
+        ),
+        (
+            "misc",
+            vec!["author", "title", "howpublished", "year", "note"],
+        ),
+    ];
+
+    let mut map = BTreeMap::new();
+    for (entry_type, fields) in types {
+        let mut inner = BTreeMap::new();
+        for field in BTreeSet::from_iter(fields.into_iter()) {
+            inner.insert(field.to_string(), "string".to_string());
+        }
+        map.insert(entry_type.to_string(), inner);
+    }
+
+    map
 }
 
 #[cfg(test)]
@@ -194,27 +226,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_bibtex_single_file() {
-        let temp_file = std::env::temp_dir().join("bibtera_test_main_parse.bib");
-        std::fs::write(
-            &temp_file,
-            "@article{t, author={A}, title={T}, year={2024}}",
-        )
-        .unwrap();
-
-        let config = Config {
-            input: Some(temp_file.to_string_lossy().to_string()),
-            output: Some("output".to_string()),
-            template: Some("template.md".to_string()),
-            ..Default::default()
-        };
-
-        let result = parse_bibtex(&config);
-        assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].key, "t");
-
-        let _ = std::fs::remove_file(temp_file);
+    fn test_default_entry_type_field_map() {
+        let map = default_entry_type_field_map();
+        assert!(map.contains_key("article"));
+        assert!(
+            map.get("article")
+                .expect("article map")
+                .contains_key("author")
+        );
     }
 }

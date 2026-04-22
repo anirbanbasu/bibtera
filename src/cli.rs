@@ -1,11 +1,10 @@
-//! Command-line interface for BibTeX to Markdown converter.
+//! Command-line interface for BibTeX converter.
 //!
-//! This module defines the command-line arguments using the Clap library.
-//! It supports input files, output directories, template files, and filtering options.
+//! This module defines command-line arguments using Clap.
 
-use clap::Parser;
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
-/// BibTeX to Markdown converter using Tera templates.
+/// BibTeX converter using Tera templates.
 #[derive(Parser, Debug)]
 #[command(name = "bibtera")]
 #[command(author = "Anirban Basu")]
@@ -15,23 +14,49 @@ use clap::Parser;
     long_about = "Parse BibTeX entries from input files and generate output in any text-based format using customisable Tera templates. The generated output can be used by static site generators like Zola."
 )]
 pub struct Cli {
+    /// Available subcommands
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+/// Top-level subcommands
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Transform BibTeX entries to files using a Tera template
+    Transform(TransformArgs),
+    /// Display parsed information about BibTeX entries
+    Info(InfoArgs),
+}
+
+/// File naming strategy for generated output files
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum FileNameStrategy {
+    /// UUID7 derived from SHAKE-128 hash bytes
+    Uuid7,
+    /// Replace non-alphanumeric key characters with underscores
+    Slugify,
+}
+
+/// Arguments for transform subcommand
+#[derive(Args, Debug)]
+pub struct TransformArgs {
     /// Path to the input BibTeX file
     #[arg(short, long)]
-    pub input: Option<String>,
+    pub input: String,
 
-    /// Path to the output directory where generated files will be saved
+    /// Path to output directory where generated files will be written
     #[arg(short, long)]
-    pub output: Option<String>,
+    pub output: String,
 
-    /// Path to the Tera template file used for formatting each file in the output directory
+    /// Path to the Tera template file
     #[arg(short, long)]
-    pub template: Option<String>,
+    pub template: String,
 
-    /// Comma-separated list of BibTeX entry keys to exclude from processing
+    /// Comma-separated BibTeX keys to exclude
     #[arg(long)]
     pub exclude: Option<String>,
 
-    /// Comma-separated list of BibTeX entry keys to include in processing. If specified, only these entries will be processed.
+    /// Comma-separated BibTeX keys to include
     #[arg(long)]
     pub include: Option<String>,
 
@@ -39,11 +64,31 @@ pub struct Cli {
     #[arg(short = 'n', long)]
     pub dry_run: bool,
 
-    /// Force overwrite of existing files in the output directory without prompting
+    /// Force overwrite of existing files without prompting
     #[arg(short = 'f', long)]
     pub overwrite: bool,
 
-    /// Enable verbose logging for debugging purposes
+    /// Output filename generation strategy
+    #[arg(long, value_enum, default_value_t = FileNameStrategy::Uuid7)]
+    pub file_name_strategy: FileNameStrategy,
+
+    /// Enable verbose transformation logs
     #[arg(short, long)]
     pub verbose: bool,
+}
+
+/// Arguments for info subcommand
+#[derive(Args, Debug)]
+pub struct InfoArgs {
+    /// Path to the input BibTeX file
+    #[arg(short, long)]
+    pub input: Option<String>,
+
+    /// Comma-separated BibTeX keys to exclude
+    #[arg(long)]
+    pub exclude: Option<String>,
+
+    /// Comma-separated BibTeX keys to include
+    #[arg(long)]
+    pub include: Option<String>,
 }

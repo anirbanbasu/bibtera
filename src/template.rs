@@ -131,6 +131,9 @@ impl TemplateEngine {
         let authors: Vec<&str> = entry.authors.iter().map(|a| a.as_str()).collect();
         context.insert("authors", &authors);
 
+        // Add structured author parts for advanced templates
+        context.insert("author_parts", &entry.author_parts);
+
         // Add year (if present)
         if let Some(year) = &entry.year {
             context.insert("year", year);

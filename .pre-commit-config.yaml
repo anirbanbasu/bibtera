@@ -24,6 +24,7 @@ repos:
         name: Check TOML files
       - id: check-json
         name: Check JSON files
+        exclude: "^template/*\\.json$"
       - id: destroyed-symlinks
         name: Check for broken symlinks
       - id: detect-private-key

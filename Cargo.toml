@@ -1,6 +1,9 @@
 [package]
 name = "bibtera"
 version = "0.1.0"
+license = "MIT"
+description = "BibTeX translator using the Tera templating engine"
 edition = "2024"
+repository = "https://github.com/anirbanbasu/bibtera"
 
 [dependencies]

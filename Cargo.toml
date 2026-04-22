@@ -28,7 +28,7 @@ serde_json = "1.0"
 pathdiff = "0.2"
 
 # Directory paths (config files)
-dirs = "5.0"
+dirs = "6.0"
 
 # Async runtime for future performance improvements
 tokio = { version = "1.0", features = ["fs", "rt"], optional = true }

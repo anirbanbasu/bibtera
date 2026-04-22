@@ -1,17 +1,13 @@
 //! Configuration management module.
 //!
 //! This module provides configuration management for the BibTeX converter,
-//! including command-line overrides, default settings, and configuration files.
+//! including command-line arguments and validation.
 
-use std::env;
 use std::fs;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-// Import cli module for OutputFormat conversion
-use crate::cli;
 
 /// Error types for configuration operations
 #[derive(Error, Debug)]
@@ -33,101 +29,40 @@ pub enum ConfigError {
     Validation(String),
 }
 
-/// Output format configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum OutputFormat {
-    /// Markdown output (.md)
-    #[default]
-    Markdown,
-    /// HTML output (.html)
-    Html,
-    /// JSON output (.json)
-    Json,
-}
-
-impl std::fmt::Display for OutputFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OutputFormat::Markdown => write!(f, "markdown"),
-            OutputFormat::Html => write!(f, "html"),
-            OutputFormat::Json => write!(f, "json"),
-        }
-    }
-}
-
-impl From<String> for OutputFormat {
-    fn from(s: String) -> Self {
-        match s.to_lowercase().as_str() {
-            "markdown" | "md" => OutputFormat::Markdown,
-            "html" | "htm" => OutputFormat::Html,
-            "json" => OutputFormat::Json,
-            _ => OutputFormat::Markdown, // Default to markdown
-        }
-    }
-}
-
 /// Application configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
-    /// Input BibTeX file or directory path
+    /// Input BibTeX file path
     #[serde(default)]
     pub input: Option<String>,
 
-    /// Output file or directory path
+    /// Output directory path where generated files will be saved
     #[serde(default)]
     pub output: Option<String>,
 
-    /// Custom template file path
+    /// Path to Tera template file used for formatting
     #[serde(default)]
     pub template: Option<String>,
 
-    /// Output format (default: markdown)
+    /// List of BibTeX entry keys to exclude from processing
     #[serde(default)]
-    pub format: OutputFormat,
+    pub exclude: Vec<String>,
 
-    /// Process files recursively
-    #[serde(default = "default_true")]
-    pub recursive: bool,
+    /// List of BibTeX entry keys to include in processing (if set, only these entries are processed)
+    #[serde(default)]
+    pub include: Vec<String>,
+
+    /// Perform a dry run without generating files
+    #[serde(default)]
+    pub dry_run: bool,
+
+    /// Force overwrite of existing files without prompting
+    #[serde(default)]
+    pub overwrite: bool,
 
     /// Enable verbose output
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub verbose: bool,
-
-    /// Template directory for custom templates
-    #[serde(default = "default_templates_dir")]
-    pub templates_dir: String,
-
-    /// Encoding for input/output files
-    #[serde(default = "default_encoding")]
-    pub encoding: String,
-}
-
-/// Default values helper functions
-fn default_true() -> bool {
-    false
-}
-
-fn default_templates_dir() -> String {
-    "templates".to_string()
-}
-
-fn default_encoding() -> String {
-    "utf-8".to_string()
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            input: None,
-            output: None,
-            template: None,
-            format: OutputFormat::Markdown,
-            recursive: true,
-            verbose: true,
-            templates_dir: "templates".to_string(),
-            encoding: "utf-8".to_string(),
-        }
-    }
 }
 
 impl Config {
@@ -137,29 +72,43 @@ impl Config {
     }
 
     /// Create config from command-line arguments
+    #[allow(clippy::too_many_arguments)]
     pub fn from_cli(
         input: Option<String>,
         output: Option<String>,
         template: Option<String>,
-        format: cli::OutputFormat,
-        recursive: bool,
+        exclude: Option<String>,
+        include: Option<String>,
+        dry_run: bool,
+        overwrite: bool,
         verbose: bool,
-    ) -> Self {
-        // Convert CLI output format to config output format
-        let format = match format {
-            cli::OutputFormat::Markdown => OutputFormat::Markdown,
-            cli::OutputFormat::Html => OutputFormat::Html,
-            cli::OutputFormat::Json => OutputFormat::Json,
-        };
-        Self {
+    ) -> Result<Self> {
+        let exclude: Vec<String> = exclude
+            .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
+            .unwrap_or_default();
+
+        let include: Vec<String> = include
+            .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
+            .unwrap_or_default();
+
+        // Validate that exclude and include are mutually exclusive
+        if !exclude.is_empty() && !include.is_empty() {
+            return Err(ConfigError::Validation(
+                "Cannot specify both --exclude and --include at the same time".to_string(),
+            )
+            .into());
+        }
+
+        Ok(Self {
             input,
             output,
             template,
-            format,
-            recursive,
+            exclude,
+            include,
+            dry_run,
+            overwrite,
             verbose,
-            ..Self::default()
-        }
+        })
     }
 
     /// Load config from a JSON file
@@ -192,14 +141,22 @@ impl Config {
         // Check input is provided
         if self.input.is_none() {
             return Err(
-                ConfigError::Validation("Input file or directory is required".to_string()).into(),
+                ConfigError::Validation("Input file is required (--input/-i)".to_string()).into(),
             );
         }
 
         // Check output is provided
         if self.output.is_none() {
             return Err(ConfigError::Validation(
-                "Output file or directory is required".to_string(),
+                "Output directory is required (--output/-o)".to_string(),
+            )
+            .into());
+        }
+
+        // Check template is provided
+        if self.template.is_none() {
+            return Err(ConfigError::Validation(
+                "Template file is required (--template/-t)".to_string(),
             )
             .into());
         }
@@ -213,105 +170,31 @@ impl Config {
             );
         }
 
+        // Validate template path exists
+        if let Some(template) = &self.template
+            && !std::path::Path::new(template).exists()
+        {
+            return Err(ConfigError::Validation(format!(
+                "Template path does not exist: {}",
+                template
+            ))
+            .into());
+        }
+
         Ok(())
     }
 
-    /// Get the output file extension based on format
-    pub fn output_extension(&self) -> &'static str {
-        match self.format {
-            OutputFormat::Markdown => "md",
-            OutputFormat::Html => "html",
-            OutputFormat::Json => "json",
-        }
-    }
-
-    /// Get the output filename for a given input filename
-    pub fn output_filename(&self, input_filename: &str) -> String {
-        let stem = input_filename
-            .rsplit_once('.')
-            .map(|(name, _)| name)
-            .unwrap_or(input_filename);
-
-        format!("{}.{}", stem, self.output_extension())
-    }
-
-    /// Build the output path
-    pub fn build_output_path(&self) -> Option<std::path::PathBuf> {
-        let output = self.output.as_ref()?;
-
-        if let Some(parent) = std::path::Path::new(output).parent()
-            && !parent.exists()
-            && let Err(e) = std::fs::create_dir_all(parent)
-        {
-            eprintln!("Warning: Could not create output directory: {}", e);
+    /// Check if an entry key should be included
+    pub fn should_include_entry(&self, key: &str) -> bool {
+        if !self.include.is_empty() {
+            return self.include.contains(&key.to_string());
         }
 
-        Some(std::path::PathBuf::from(output))
-    }
-}
+        if !self.exclude.is_empty() {
+            return !self.exclude.contains(&key.to_string());
+        }
 
-impl std::fmt::Display for Config {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Config {{\n  input: {:?},\n  output: {:?},\n  template: {:?},\n  format: {:?},\n  recursive: {},\n  verbose: {},\n  templates_dir: {},\n  encoding: {}\n}}",
-            self.input,
-            self.output,
-            self.template,
-            self.format,
-            self.recursive,
-            self.verbose,
-            self.templates_dir,
-            self.encoding
-        )
-    }
-}
-
-/// Environment configuration provider
-pub struct EnvConfig;
-
-impl EnvConfig {
-    /// Get environment variable as string
-    pub fn get(var: &str) -> Option<String> {
-        env::var(var).ok()
-    }
-
-    /// Get environment variable as typed value
-    pub fn get_typed<T: std::str::FromStr>(var: &str) -> Option<T> {
-        env::var(var).ok()?.parse().ok()
-    }
-
-    /// Get environment variable with default value
-    pub fn get_with_default<T: std::str::FromStr>(var: &str, default: T) -> T {
-        env::var(var)
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(default)
-    }
-
-    /// Check if environment variable is set
-    pub fn is_set(var: &str) -> bool {
-        env::var(var).is_ok()
-    }
-}
-
-/// Configuration file paths provider
-pub struct ConfigPaths;
-
-impl ConfigPaths {
-    /// Get the user's home directory config path
-    pub fn home_config() -> Option<std::path::PathBuf> {
-        dirs::config_dir().map(|p| p.join("bibtera"))
-    }
-
-    /// Get the config file path
-    pub fn config_file() -> Option<std::path::PathBuf> {
-        Self::home_config().map(|p| p.join("config.json"))
-    }
-
-    /// Get the templates directory path
-    pub fn templates_dir() -> Option<std::path::PathBuf> {
-        Self::home_config().map(|p| p.join("templates"))
+        true
     }
 }
 
@@ -322,90 +205,74 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.format, OutputFormat::Markdown);
-        assert!(config.recursive);
-        assert!(config.verbose);
+        assert_eq!(config.verbose, false);
+        assert_eq!(config.dry_run, false);
+        assert!(config.exclude.is_empty());
+        assert!(config.include.is_empty());
     }
 
     #[test]
-    fn test_cli_config() {
-        let config = Config::from_cli(
-            Some("input.bib".to_string()),
-            Some("output.md".to_string()),
-            None,
-            crate::cli::OutputFormat::Html,
-            false,
-            false,
-        );
-
-        assert_eq!(config.input, Some("input.bib".to_string()));
-        assert_eq!(config.output, Some("output.md".to_string()));
-        assert_eq!(config.format, OutputFormat::Html);
-        assert!(!config.recursive);
-        assert!(!config.verbose);
-    }
-
-    #[test]
-    fn test_output_extension() {
-        let mut config = Config::default();
-        assert_eq!(config.output_extension(), "md");
-
-        config.format = OutputFormat::Html;
-        assert_eq!(config.output_extension(), "html");
-
-        config.format = OutputFormat::Json;
-        assert_eq!(config.output_extension(), "json");
-    }
-
-    #[test]
-    fn test_output_filename() {
+    fn test_should_include_entry_no_filters() {
         let config = Config::default();
-        assert_eq!(config.output_filename("paper.bib"), "paper.md");
-        assert_eq!(config.output_filename("citation.bib"), "citation.md");
+        assert!(config.should_include_entry("key1"));
+        assert!(config.should_include_entry("key2"));
     }
 
     #[test]
-    fn test_format_from_string() {
-        assert_eq!(
-            OutputFormat::from("markdown".to_string()),
-            OutputFormat::Markdown
-        );
-        assert_eq!(OutputFormat::from("md".to_string()), OutputFormat::Markdown);
-        assert_eq!(OutputFormat::from("html".to_string()), OutputFormat::Html);
-        assert_eq!(OutputFormat::from("json".to_string()), OutputFormat::Json);
-        assert_eq!(
-            OutputFormat::from("invalid".to_string()),
-            OutputFormat::Markdown
-        );
+    fn test_should_include_entry_with_include() {
+        let config = Config {
+            include: vec!["key1".to_string(), "key2".to_string()],
+            ..Default::default()
+        };
+        assert!(config.should_include_entry("key1"));
+        assert!(config.should_include_entry("key2"));
+        assert!(!config.should_include_entry("key3"));
     }
 
     #[test]
-    fn test_validate_config() {
-        let mut config = Config::default();
+    fn test_should_include_entry_with_exclude() {
+        let config = Config {
+            exclude: vec!["key1".to_string()],
+            ..Default::default()
+        };
+        assert!(!config.should_include_entry("key1"));
+        assert!(config.should_include_entry("key2"));
+    }
 
-        // Should fail without input
+    #[test]
+    fn test_from_cli_exclude_and_include_mutually_exclusive() {
+        let result = Config::from_cli(
+            Some("input.bib".to_string()),
+            Some("output".to_string()),
+            Some("template.md".to_string()),
+            Some("key1,key2".to_string()),
+            Some("key3,key4".to_string()),
+            false,
+            false,
+            false,
+        );
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Cannot specify both --exclude and --include"));
+    }
+
+    #[test]
+    fn test_validate_config_requires_all_fields() {
+        let config = Config::default();
         assert!(config.validate().is_err());
 
-        // Should fail without output
-        config.input = Some("test.bib".to_string());
+        let mut config = Config {
+            input: Some("input.bib".to_string()),
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        // Should pass with both when input path exists
-        let temp_input = std::env::temp_dir().join("bibtera_test_validate_input.bib");
-        std::fs::write(
-            &temp_input,
-            "@article{k, title={t}, author={a}, year={2024}}",
-        )
-        .unwrap();
-        config.input = Some(temp_input.to_string_lossy().to_string());
-        config.output = Some("output.md".to_string());
-        assert!(config.validate().is_ok());
-        let _ = std::fs::remove_file(temp_input);
-    }
+        config.output = Some("output".to_string());
+        assert!(config.validate().is_err());
 
-    #[test]
-    fn test_env_config() {
-        assert!(EnvConfig::is_set("PATH"));
-        assert!(EnvConfig::get("PATH").is_some());
+        config.template = Some("template.md".to_string());
+        // This will still fail because the files don't exist
+        assert!(config.validate().is_err());
     }
 }

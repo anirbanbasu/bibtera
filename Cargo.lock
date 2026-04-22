@@ -106,6 +106,7 @@ dependencies = [
  "pathdiff",
  "serde",
  "serde_json",
+ "sha2",
  "tera",
  "thiserror 2.0.18",
  "tokio",

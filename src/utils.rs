@@ -193,6 +193,18 @@ pub fn relative_path<P1: AsRef<Path>, P2: AsRef<Path>>(from: P1, to: P2) -> Path
     pathdiff::diff_paths(to.as_ref(), from.as_ref()).unwrap_or_else(|| to.as_ref().to_path_buf())
 }
 
+/// Generate a unique filename from a BibTeX entry key using SHA-256 hash in hexadecimal format
+pub fn generate_unique_filename(key: &str, extension: &str) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    hasher.update(key.as_bytes());
+    let hash_result = hasher.finalize();
+    let hash_hex = format!("{:x}", hash_result);
+
+    format!("{}.{}", hash_hex, extension)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

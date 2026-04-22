@@ -1,14 +1,14 @@
 //! Integration tests for the BibTeX converter.
 //!
 //! These tests verify the end-to-end functionality of the application,
-//! including parsing BibTeX files and rendering them to various formats.
+//! including parsing BibTeX files and rendering them to Tera templates.
 
 use std::fs;
 use std::path::PathBuf;
 
-use bibtera::config::{Config, OutputFormat};
+use bibtera::config::Config;
 use bibtera::parser::BibTeXParser;
-use bibtera::template::{HtmlHandler, JsonHandler, MarkdownHandler, OutputHandler};
+use bibtera::template::TemplateEngine;
 
 /// Get the examples directory path
 fn examples_dir() -> PathBuf {
@@ -59,57 +59,37 @@ fn test_parse_single_entry() {
 }
 
 #[test]
-fn test_markdown_rendering() {
-    let entries = vec![bibtera::parser::BibTeXEntry::new(
-        "test1".to_string(),
-        "article".to_string(),
-        vec!["Author One".to_string()],
-        "Test Title".to_string(),
-    )];
+fn test_template_engine_rendering() {
+    let mut engine = TemplateEngine::new().expect("Failed to create template engine");
 
-    let handler = MarkdownHandler::new();
-    let rendered = handler
-        .render_entries(&entries)
-        .expect("Failed to render markdown");
+    // Create a temporary template file
+    let temp_file = temp_dir().join("test_template.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "# {{ title }}\n\nKey: {{ key }}\n\nAuthors: {% for author in authors %}{{ author }}{% if not loop.last %}, {% endif %}{% endfor %}";
+    fs::write(&temp_file, template_content).expect("Failed to write template");
+
+    engine
+        .add_template(&temp_file)
+        .expect("Failed to add template");
+
+    let entry = bibtera::parser::BibTeXEntry::new(
+        "test2024".to_string(),
+        "article".to_string(),
+        vec!["Author One".to_string(), "Author Two".to_string()],
+        "Test Title".to_string(),
+    );
+
+    let rendered = engine
+        .render_entry("test_template", &entry)
+        .expect("Failed to render");
 
     assert!(rendered.contains("# Test Title"));
+    assert!(rendered.contains("Key: test2024"));
     assert!(rendered.contains("Author One"));
-}
 
-#[test]
-fn test_html_rendering() {
-    let entries = vec![bibtera::parser::BibTeXEntry::new(
-        "test1".to_string(),
-        "book".to_string(),
-        vec!["Author Two".to_string()],
-        "Book Title".to_string(),
-    )];
-
-    let handler = HtmlHandler::new();
-    let rendered = handler
-        .render_entries(&entries)
-        .expect("Failed to render html");
-
-    assert!(rendered.contains("<h1>Book Title</h1>"));
-    assert!(rendered.contains("<strong>Authors</strong>"));
-}
-
-#[test]
-fn test_json_rendering() {
-    let entries = vec![bibtera::parser::BibTeXEntry::new(
-        "test1".to_string(),
-        "inproceedings".to_string(),
-        vec!["Author Three".to_string()],
-        "Conference Paper".to_string(),
-    )];
-
-    let handler = JsonHandler::new();
-    let rendered = handler
-        .render_entries(&entries)
-        .expect("Failed to render json");
-
-    assert!(rendered.contains("\"key\": \"test1\""));
-    assert!(rendered.contains("\"entry_type\": \"inproceedings\""));
+    // Cleanup
+    fs::remove_file(&temp_file).ok();
 }
 
 #[test]
@@ -118,39 +98,62 @@ fn test_full_workflow() {
 
     // Parse
     let entries = BibTeXParser::parse_file(&sample_file).expect("Failed to parse");
-
-    // Render to Markdown
-    let handler = MarkdownHandler::new();
-    let rendered = handler.render_entries(&entries).expect("Failed to render");
-
-    // Write to temp file
-    let temp_output = temp_dir().join("test_output.md");
-    fs::create_dir_all(temp_output.parent().unwrap()).ok();
-    fs::write(&temp_output, &rendered).expect("Failed to write output");
-
-    // Verify output exists
-    assert!(temp_output.exists());
-
-    // Cleanup
-    fs::remove_file(&temp_output).ok();
+    assert!(!entries.is_empty());
 }
 
 #[test]
-fn test_cli_config() {
-    let config = Config::from_cli(
-        Some("test.bib".to_string()),
-        Some("output.md".to_string()),
-        None,
-        bibtera::cli::OutputFormat::Markdown,
-        true,
-        true,
-    );
+fn test_config_creation() {
+    let config = Config {
+        input: Some("test.bib".to_string()),
+        output: Some("output".to_string()),
+        template: Some("template.md".to_string()),
+        exclude: vec![],
+        include: vec![],
+        dry_run: false,
+        overwrite: false,
+        verbose: false,
+    };
 
     assert_eq!(config.input, Some("test.bib".to_string()));
-    assert_eq!(config.output, Some("output.md".to_string()));
-    assert_eq!(config.format, OutputFormat::Markdown);
-    assert!(config.recursive);
-    assert!(config.verbose);
+    assert_eq!(config.output, Some("output".to_string()));
+    assert_eq!(config.template, Some("template.md".to_string()));
+    assert!(!config.dry_run);
+    assert!(!config.overwrite);
+}
+
+#[test]
+fn test_config_from_cli() {
+    let config = Config::from_cli(
+        Some("test.bib".to_string()),
+        Some("output".to_string()),
+        Some("template.md".to_string()),
+        None,
+        None,
+        false,
+        false,
+        false,
+    )
+    .expect("Failed to create config from CLI");
+
+    assert_eq!(config.input, Some("test.bib".to_string()));
+    assert_eq!(config.output, Some("output".to_string()));
+    assert_eq!(config.template, Some("template.md".to_string()));
+}
+
+#[test]
+fn test_config_exclude_and_include_mutually_exclusive() {
+    let result = Config::from_cli(
+        Some("test.bib".to_string()),
+        Some("output".to_string()),
+        Some("template.md".to_string()),
+        Some("key1,key2".to_string()),
+        Some("key3,key4".to_string()),
+        false,
+        false,
+        false,
+    );
+
+    assert!(result.is_err());
 }
 
 #[test]
@@ -165,25 +168,34 @@ fn test_directory_parsing() {
 }
 
 #[test]
-fn test_output_extension() {
-    let config = Config::default();
+fn test_should_include_entry_with_include() {
+    let config = Config {
+        include: vec!["key1".to_string(), "key2".to_string()],
+        ..Default::default()
+    };
 
-    assert_eq!(config.output_extension(), "md");
-
-    let mut config_html = config.clone();
-    config_html.format = OutputFormat::Html;
-    assert_eq!(config_html.output_extension(), "html");
-
-    let mut config_json = config;
-    config_json.format = OutputFormat::Json;
-    assert_eq!(config_json.output_extension(), "json");
+    assert!(config.should_include_entry("key1"));
+    assert!(config.should_include_entry("key2"));
+    assert!(!config.should_include_entry("key3"));
 }
 
 #[test]
-fn test_output_filename() {
+fn test_should_include_entry_with_exclude() {
+    let config = Config {
+        exclude: vec!["key1".to_string()],
+        ..Default::default()
+    };
+
+    assert!(!config.should_include_entry("key1"));
+    assert!(config.should_include_entry("key2"));
+    assert!(config.should_include_entry("key3"));
+}
+
+#[test]
+fn test_should_include_entry_no_filters() {
     let config = Config::default();
 
-    assert_eq!(config.output_filename("paper.bib"), "paper.md");
-    assert_eq!(config.output_filename("citation.bib"), "citation.md");
-    assert_eq!(config.output_filename("test"), "test.md");
+    assert!(config.should_include_entry("key1"));
+    assert!(config.should_include_entry("key2"));
+    assert!(config.should_include_entry("any_key"));
 }

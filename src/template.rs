@@ -1,7 +1,8 @@
 //! Template rendering module.
 //!
 //! This module provides functionality to render BibTeX entries using Tera templates.
-//! It supports custom templates for different output formats (Markdown, HTML, JSON).
+//! Each template can generate any text-based output format by specifying the appropriate
+//! template file with the desired extension (e.g., template.md for Markdown, template.html for HTML).
 
 use std::collections::HashMap;
 use std::fs;
@@ -33,206 +34,7 @@ pub enum TemplateError {
     NotFound(String),
 }
 
-/// Output format handler for rendering entries
-pub trait OutputHandler {
-    /// Get the file extension for this format
-    fn extension(&self) -> &'static str;
-
-    /// Render a single entry to string
-    fn render_entry(&self, entry: &BibTeXEntry) -> Result<String>;
-
-    /// Render multiple entries to string
-    fn render_entries(&self, entries: &[BibTeXEntry]) -> Result<String> {
-        let mut results = Vec::new();
-        for entry in entries {
-            results.push(self.render_entry(entry)?);
-        }
-        Ok(results.join("\n\n"))
-    }
-}
-
-/// Markdown output handler
-pub struct MarkdownHandler;
-
-impl MarkdownHandler {
-    /// Create a new Markdown handler
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for MarkdownHandler {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl OutputHandler for MarkdownHandler {
-    fn extension(&self) -> &'static str {
-        "md"
-    }
-
-    fn render_entry(&self, entry: &BibTeXEntry) -> Result<String> {
-        let mut output = String::new();
-
-        // Add header with title
-        output.push_str(&format!("# {}", entry.title));
-        output.push('\n');
-        output.push('\n');
-
-        // Add citation key as comment
-        output.push_str(&format!("<!-- citation: {} -->", entry.key));
-        output.push('\n');
-        output.push('\n');
-
-        // Add authors
-        if !entry.authors.is_empty() {
-            output.push_str("**Authors**: ");
-            output.push_str(&entry.authors.join(", "));
-            output.push('\n');
-            output.push('\n');
-        }
-
-        // Add year
-        if let Some(year) = &entry.year {
-            output.push_str("**Year**: ");
-            output.push_str(year);
-            output.push('\n');
-            output.push('\n');
-        }
-
-        // Add entry type
-        output.push_str("**Type**: ");
-        output.push_str(&entry.entry_type);
-        output.push('\n');
-        output.push('\n');
-
-        // Add additional fields
-        if !entry.fields.is_empty() {
-            output.push_str("**Fields**:\n\n");
-
-            for (key, value) in &entry.fields {
-                output.push_str(&format!("- **{}**: {}", key, value));
-                output.push('\n');
-            }
-            output.push('\n');
-        }
-
-        Ok(output)
-    }
-}
-
-/// HTML output handler
-pub struct HtmlHandler;
-
-impl HtmlHandler {
-    /// Create a new HTML handler
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for HtmlHandler {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl OutputHandler for HtmlHandler {
-    fn extension(&self) -> &'static str {
-        "html"
-    }
-
-    fn render_entry(&self, entry: &BibTeXEntry) -> Result<String> {
-        let mut output = String::new();
-
-        // Escape HTML entities in strings
-        let escape = |s: &str| -> String {
-            s.replace('&', "&amp;")
-                .replace('<', "&lt;")
-                .replace('>', "&gt;")
-                .replace('"', "&quot;")
-                .replace('\'', "&#39;")
-        };
-
-        // Add header with title
-        output.push_str(&format!("<h1>{}</h1>", escape(&entry.title)));
-        output.push('\n');
-
-        // Add authors
-        if !entry.authors.is_empty() {
-            output.push_str("<p><strong>Authors</strong>: ");
-            output.push_str(&entry.authors.join(", "));
-            output.push_str("</p>\n");
-        }
-
-        // Add year
-        if let Some(year) = &entry.year {
-            output.push_str("<p><strong>Year</strong>: ");
-            output.push_str(year);
-            output.push_str("</p>\n");
-        }
-
-        // Add entry type
-        output.push_str("<p><strong>Type</strong>: ");
-        output.push_str(&entry.entry_type);
-        output.push_str("</p>\n");
-
-        // Add additional fields
-        if !entry.fields.is_empty() {
-            output.push_str("<dl>\n");
-            for (key, value) in &entry.fields {
-                output.push_str(&format!(
-                    "<dt><strong>{}</strong></dt><dd>{}</dd>\n",
-                    escape(key),
-                    escape(value)
-                ));
-            }
-            output.push_str("</dl>\n");
-        }
-
-        Ok(output)
-    }
-}
-
-/// JSON output handler
-pub struct JsonHandler;
-
-impl JsonHandler {
-    /// Create a new JSON handler
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for JsonHandler {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl OutputHandler for JsonHandler {
-    fn extension(&self) -> &'static str {
-        "json"
-    }
-
-    fn render_entry(&self, entry: &BibTeXEntry) -> Result<String> {
-        use serde_json::json;
-
-        let json_obj = json!({
-            "key": entry.key,
-            "entry_type": entry.entry_type,
-            "authors": entry.authors,
-            "title": entry.title,
-            "year": entry.year,
-            "fields": entry.fields
-        });
-
-        Ok(serde_json::to_string_pretty(&json_obj)?)
-    }
-}
-
-/// Template engine wrapper
+/// Template engine for rendering BibTeX entries with Tera templates
 pub struct TemplateEngine {
     /// Tera instance
     tera: Tera,
@@ -242,26 +44,9 @@ pub struct TemplateEngine {
 }
 
 impl TemplateEngine {
-    /// Create a new template engine with default templates
+    /// Create a new template engine
     pub fn new() -> Result<Self> {
-        let mut tera = Tera::default();
-
-        // Load built-in templates
-        tera.add_raw_template(
-            "bibtex_entry.md",
-            include_str!("../templates/bibtex_entry.md"),
-        )
-        .context("Failed to load default markdown template")?;
-        tera.add_raw_template(
-            "bibtex_entry.html",
-            include_str!("../templates/bibtex_entry.html"),
-        )
-        .context("Failed to load default html template")?;
-        tera.add_raw_template(
-            "bibtex_entry.json",
-            include_str!("../templates/bibtex_entry.json"),
-        )
-        .context("Failed to load default json template")?;
+        let tera = Tera::default();
 
         Ok(Self {
             tera,
@@ -288,7 +73,7 @@ impl TemplateEngine {
             custom_templates: Vec::new(),
         };
 
-        // Load all .tera files from the directory
+        // Load all template files from the directory
         engine.load_templates_from_dir(dir)?;
 
         Ok(engine)
@@ -325,7 +110,7 @@ impl TemplateEngine {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "tera") {
+            if path.is_file() {
                 self.add_template(&path)?;
             }
         }
@@ -346,7 +131,7 @@ impl TemplateEngine {
         let authors: Vec<&str> = entry.authors.iter().map(|a| a.as_str()).collect();
         context.insert("authors", &authors);
 
-        // Add year (optionally)
+        // Add year (if present)
         if let Some(year) = &entry.year {
             context.insert("year", year);
         }
@@ -391,46 +176,13 @@ impl TemplateEngine {
     }
 }
 
-/// Render entries using built-in output handlers
-pub fn render_with_handler<P: AsRef<Path>>(
-    handler: &dyn OutputHandler,
-    entry: &BibTeXEntry,
-    output_path: P,
-) -> Result<()> {
-    let output_path = output_path.as_ref();
-
-    // Ensure parent directory exists
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).context("Failed to create output directory")?;
+impl Default for TemplateEngine {
+    fn default() -> Self {
+        Self::new().unwrap_or_else(|_| Self {
+            tera: Tera::default(),
+            custom_templates: Vec::new(),
+        })
     }
-
-    // Render and write
-    let rendered = handler.render_entry(entry)?;
-
-    fs::write(output_path, &rendered).context("Failed to write output file")?;
-
-    Ok(())
-}
-
-/// Render multiple entries using built-in output handlers
-pub fn render_entries_with_handler<P: AsRef<Path>>(
-    handler: &dyn OutputHandler,
-    entries: &[BibTeXEntry],
-    output_path: P,
-) -> Result<()> {
-    let output_path = output_path.as_ref();
-
-    // Ensure parent directory exists
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).context("Failed to create output directory")?;
-    }
-
-    // Render and write
-    let rendered = handler.render_entries(entries)?;
-
-    fs::write(output_path, &rendered).context("Failed to write output file")?;
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -438,8 +190,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_markdown_handler() {
-        let handler = MarkdownHandler::new();
+    fn test_template_engine_creation() {
+        let engine = TemplateEngine::new();
+        assert!(engine.is_ok());
+    }
+
+    #[test]
+    fn test_add_template() {
+        let mut engine = TemplateEngine::new().unwrap();
+        let temp_file = std::env::temp_dir().join("test_template.md");
+        std::fs::write(&temp_file, "# {{ title }}\n{{ key }}").unwrap();
+
+        let result = engine.add_template(&temp_file);
+        assert!(result.is_ok());
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_render_entry_with_template() {
+        let mut engine = TemplateEngine::new().unwrap();
+        let temp_file = std::env::temp_dir().join("test_render_template.md");
+        let template_content = "Title: {{ title }}\nKey: {{ key }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
         let entry = BibTeXEntry::new(
             "test2024".to_string(),
             "article".to_string(),
@@ -447,44 +223,12 @@ mod tests {
             "Test Title".to_string(),
         );
 
-        let rendered = handler.render_entry(&entry).unwrap();
+        let rendered = engine.render_entry("test_render_template", &entry);
+        assert!(rendered.is_ok());
+        let rendered_str = rendered.unwrap();
+        assert!(rendered_str.contains("Title: Test Title"));
+        assert!(rendered_str.contains("Key: test2024"));
 
-        assert!(rendered.contains("# Test Title"));
-        assert!(rendered.contains("Author One"));
-        assert!(rendered.contains("article"));
-    }
-
-    #[test]
-    fn test_html_handler() {
-        let handler = HtmlHandler::new();
-        let entry = BibTeXEntry::new(
-            "test2024".to_string(),
-            "book".to_string(),
-            vec!["Author Two".to_string()],
-            "Another Title".to_string(),
-        );
-
-        let rendered = handler.render_entry(&entry).unwrap();
-
-        assert!(rendered.contains("<h1>Another Title</h1>"));
-        assert!(rendered.contains("Author Two"));
-        assert!(rendered.contains("<strong>Type</strong>: book"));
-    }
-
-    #[test]
-    fn test_json_handler() {
-        let handler = JsonHandler::new();
-        let entry = BibTeXEntry::new(
-            "test2024".to_string(),
-            "inproceedings".to_string(),
-            vec!["Author Three".to_string()],
-            "Conference Paper".to_string(),
-        );
-
-        let rendered = handler.render_entry(&entry).unwrap();
-
-        assert!(rendered.contains("\"key\": \"test2024\""));
-        assert!(rendered.contains("\"entry_type\": \"inproceedings\""));
-        assert!(rendered.contains("Conference Paper"));
+        let _ = std::fs::remove_file(temp_file);
     }
 }

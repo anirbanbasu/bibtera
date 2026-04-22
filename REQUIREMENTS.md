@@ -2,7 +2,7 @@
 
 The following specify the functional and non-functional requirements for the project.
 
-**Requirements specification version**: _v2026-04-23-002_.
+**Requirements specification version**: _v2026-04-23-002-post-draft_.
 
 ## Functional requirements
 
@@ -50,3 +50,15 @@ The following functional requirements are being improved iteratively as the proj
 7. The application should use multithreading and/or asynchronous processing where appropriate to improve performance, especially when handling large inputs and outputs.
     1. The application must process multiple BibTeX entries sequentially to ensure that the output files are generated in a predictable order based on the input file.
 8. The application must be compatible with major operating systems (Windows, macOS, Linux).
+
+## External interface requirements
+
+TODO: Define any external interfaces (e.g., UIs, APIs, file formats, etc.) that the application will interact with. Some of the functional requirements above already specify interactions with the command-line interface and file I/O may need to be specified here instead.
+
+## Other requirements
+
+TODO: Define any other requirements that do not fit into the categories above, such as legal or regulatory requirements, ethical considerations, etc. Also, include internationalisation, design contraints, database requirements, etc. if applicable.
+
+## Supplementary materials
+
+TODO: Include a glossary of terms, use-case diagrams and workflow models, data models (ER diagrams), traceability matrix linking requirements to design and tests, etc. as needed to support the requirements specification.

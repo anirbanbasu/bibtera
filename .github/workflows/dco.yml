@@ -1,0 +1,18 @@
+name: DCO sign-off
+permissions:
+    contents: read
+    pull-requests: write
+
+on:
+    pull_request:
+
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Harden the runner (Audit all outbound calls)
+              uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+              with:
+                  egress-policy: audit
+
+            - uses: KineticCafe/actions-dco@6e1652ef3027ce128e65e6edd215ae053350bd16 # v2.1.1

@@ -153,6 +153,9 @@ impl TemplateEngine {
         // Add raw BibTeX representation
         context.insert("raw_bibtex", &entry.raw_bibtex);
 
+        // Add slugified keywords from the BibTeX keywords field
+        context.insert("slugified_keywords", &entry.slugified_keywords);
+
         // Add fields as object
         let fields: HashMap<&str, &str> = entry
             .fields

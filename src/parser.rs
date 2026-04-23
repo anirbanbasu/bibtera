@@ -56,6 +56,9 @@ pub struct BibTeXEntry {
     /// Canonical raw BibTeX text for this entry
     pub raw_bibtex: String,
 
+    /// Keywords slugified for template usage
+    pub slugified_keywords: Vec<String>,
+
     /// Additional fields (journal, publisher, volume, pages, etc.)
     pub fields: HashMap<String, String>,
 }
@@ -87,6 +90,7 @@ impl BibTeXEntry {
             title,
             year: None,
             raw_bibtex: String::new(),
+            slugified_keywords: Vec::new(),
             fields: HashMap::new(),
         }
     }
@@ -106,6 +110,12 @@ impl BibTeXEntry {
     /// Set raw BibTeX representation
     pub fn with_raw_bibtex(mut self, raw_bibtex: String) -> Self {
         self.raw_bibtex = raw_bibtex;
+        self
+    }
+
+    /// Set slugified keyword list
+    pub fn with_slugified_keywords(mut self, slugified_keywords: Vec<String>) -> Self {
+        self.slugified_keywords = slugified_keywords;
         self
     }
 
@@ -269,6 +279,12 @@ impl BibTeXParser {
         // Extract year
         let year = all_fields.get("year").map(|y| y.format_verbatim());
 
+        // Extract keywords as slugified list
+        let slugified_keywords = all_fields
+            .get("keywords")
+            .map(|keywords| Self::parse_slugified_keywords(&keywords.format_verbatim()))
+            .unwrap_or_default();
+
         let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields);
 
         // Build fields map with remaining fields
@@ -292,6 +308,7 @@ impl BibTeXParser {
             title,
             year,
             raw_bibtex,
+            slugified_keywords,
             fields,
         }
     }
@@ -342,6 +359,33 @@ impl BibTeXParser {
             "december" | "dec" => "12".to_string(),
             _ => trimmed.to_string(),
         }
+    }
+
+    fn parse_slugified_keywords(value: &str) -> Vec<String> {
+        value
+            .split([',', ';'])
+            .map(str::trim)
+            .filter(|keyword| !keyword.is_empty())
+            .map(Self::slugify_keyword)
+            .filter(|keyword| !keyword.is_empty())
+            .collect()
+    }
+
+    fn slugify_keyword(keyword: &str) -> String {
+        let mut output = String::with_capacity(keyword.len());
+        let mut last_was_hyphen = false;
+
+        for ch in keyword.chars() {
+            if ch.is_ascii_alphanumeric() {
+                output.push(ch.to_ascii_lowercase());
+                last_was_hyphen = false;
+            } else if !last_was_hyphen {
+                output.push('-');
+                last_was_hyphen = true;
+            }
+        }
+
+        output.trim_matches('-').to_string()
     }
 
     /// Parse author field (can be "Last, First" or "First Last" format)
@@ -439,6 +483,7 @@ mod tests {
         )
         .with_year("2024".to_string())
         .with_raw_bibtex("@article{test2024,\n}\n".to_string())
+        .with_slugified_keywords(vec!["privacy-security".to_string()])
         .with_field("journal".to_string(), "Test Journal".to_string());
 
         assert_eq!(entry.key, "test2024");
@@ -446,6 +491,10 @@ mod tests {
         assert_eq!(entry.authors.len(), 1);
         assert_eq!(entry.year, Some("2024".to_string()));
         assert!(entry.raw_bibtex.contains("@article{test2024"));
+        assert_eq!(
+            entry.slugified_keywords,
+            vec!["privacy-security".to_string()]
+        );
         assert_eq!(
             entry.fields.get("journal"),
             Some(&"Test Journal".to_string())
@@ -459,8 +508,8 @@ mod tests {
   author = {Doe, John},
   title = {T},
   year = {2024},
-  abstract = {A custom abstract field},
-  keywords = {privacy,security},
+    abstract = {A custom abstract field},
+    keywords = {Privacy & Security,Zero Trust},
   customflag = {enabled}
 }
 "#;
@@ -475,14 +524,39 @@ mod tests {
         );
         assert_eq!(
             entry.fields.get("keywords"),
-            Some(&"privacy,security".to_string())
+            Some(&"Privacy & Security,Zero Trust".to_string())
         );
         assert_eq!(entry.fields.get("customflag"), Some(&"enabled".to_string()));
+        assert_eq!(
+            entry.slugified_keywords,
+            vec!["privacy-security".to_string(), "zero-trust".to_string()]
+        );
         assert!(entry.raw_bibtex.contains("@article{k1"));
         assert!(
             entry
                 .raw_bibtex
                 .contains("abstract = {A custom abstract field}")
+        );
+    }
+
+    #[test]
+    fn test_parse_slugified_keywords_from_keywords_field() {
+        let src = r#"
+@article{k1,
+  title = {T},
+  keywords = {Privacy & Security, Zero Trust; AI/ML}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with keywords");
+        let entry = &entries[0];
+        assert_eq!(
+            entry.slugified_keywords,
+            vec![
+                "privacy-security".to_string(),
+                "zero-trust".to_string(),
+                "ai-ml".to_string()
+            ]
         );
     }
 

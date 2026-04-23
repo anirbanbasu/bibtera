@@ -2,7 +2,7 @@
 
 The following specify the functional and non-functional requirements for the project.
 
-**Requirements specification version**: _v2026-04-23-006-with-todos_.
+**Requirements specification version**: _v2026-04-23-007-with-todos_.
 
 ## Functional requirements
 
@@ -12,6 +12,7 @@ The following functional requirements are being improved iteratively as the proj
     1. When parsing author names, most BibTeX entries use the format "Last, First" or "Last, F N" for author names where "F N" represents the initial of the first name. However, some entries may use the format "First Last". The application should be able to handle both formats and convert them to a consistent format and expose the parts of the name for rendering to the template.
     2. There may be non-standard fields in the BibTeX entries, such as "abstract", "keywords", etc. The application should be able to parse these fields and make them available for rendering in the Tera templates, even if they are not part of the standard BibTeX specification.
     3. Sometimes, BibTeX field "month" may contain a non-numeric value (e.g., "January", "Feb", etc.) instead of a numeric representation (e.g., "1", "2", etc.). The application should be able to handle both cases and convert the month value to a consistent numeric representation, zero-prefixed for values less than 10, for rendering in the Tera templates.
+    4. A BibTeX entry may contain a list of keywords in the "keywords" field. If it exists, the application should parse the keywords and expose them as an array of strings in the Tera templates through the `slugified_keywords` field, allowing users to access individual keywords as well as the full list. The application must slugify each keyword by replacing non-alphanumeric characters with hyphens.
 2. The application must be able to transform the parsed BibTeX entries into files in the desired output format using Tera templates. For each BibTeX entry, the application should generate a corresponding file in the specified output directory, using a user-specified Tera template for formatting. If there is only one BibTeX entry, the application should generate a single file.
     1. The file name of the generated file should be derived from the BibTeX entry's key. The file name must not contain any characters that are not allowed in file names (e.g., slashes, colons, etc.) and should ensure that the resulting file name is unique within the output directory to prevent overwriting existing files.
         1. Use a UUID7 representation with its 16-byte input from a SHAKE-128 hash of the BibTeX entry's key to generate a unique file name.

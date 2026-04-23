@@ -185,6 +185,38 @@ fn test_template_renders_normalized_month_field() {
 }
 
 #[test]
+fn test_template_renders_slugified_keywords_field() {
+    let src = r#"
+@article{k1,
+  author = {Doe, John},
+  title = {Test Title},
+  keywords = {Privacy & Security, Zero Trust; AI/ML}
+}
+"#;
+
+    let entries = BibTeXParser::parse_str(src).expect("parse source");
+    let entry = entries.first().expect("entry exists");
+
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = temp_dir().join("test_slugified_keywords_template.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content =
+        "First: {{ slugified_keywords[0] }}\nAll: {{ slugified_keywords | join(sep=\",\") }}\n";
+    fs::write(&temp_file, template_content).expect("write template");
+
+    engine.add_template(&temp_file).expect("add template");
+    let rendered = engine
+        .render_entry("test_slugified_keywords_template", entry)
+        .expect("render entry");
+
+    assert!(rendered.contains("First: privacy-security"));
+    assert!(rendered.contains("All: privacy-security,zero-trust,ai-ml"));
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn test_cli_transform_parsing() {
     let cli = Cli::try_parse_from([
         "bibtera",

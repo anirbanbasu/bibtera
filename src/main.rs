@@ -244,6 +244,10 @@ fn template_available_fields_for_type(fields: &[&str]) -> BTreeMap<String, Strin
     );
     map.insert("year".to_string(), "string|null".to_string());
     map.insert("raw_bibtex".to_string(), "string".to_string());
+    map.insert(
+        "slugified_keywords".to_string(),
+        "array<string>".to_string(),
+    );
     map.insert("fields".to_string(), "map<string,string>".to_string());
     map.insert("fields.month".to_string(), "string".to_string());
 

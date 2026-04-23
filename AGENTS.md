@@ -52,6 +52,7 @@ The project is structured into the following modules within the `src` directory:
 - `utils.rs`: Contains utility functions that are used across the project.
 - `cli.rs`: Contains the command-line interface definitions using Clap.
 - `config.rs`: Contains the configuration management logic, if needed in the future.
+- `lib.rs`: Contains the core library code, if the project is structured as a library and binary.
 
 Outside the `src` directory, we have:
 
@@ -63,3 +64,7 @@ Outside the `src` directory, we have:
 
 - Standard Rust targets
 - PyO3 for Python bindings (if implemented in the future)
+
+## Requirements specification
+
+Requirements are specified in REQUIREMENTS.md.

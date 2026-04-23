@@ -294,6 +294,8 @@ impl BibTeXParser {
                 let mut value = v.format_verbatim();
                 if k == "month" {
                     value = Self::normalize_month_value(&value);
+                } else if k == "day" {
+                    value = Self::normalize_day_value(&value);
                 }
 
                 fields.insert(k, value);
@@ -359,6 +361,21 @@ impl BibTeXParser {
             "december" | "dec" => "12".to_string(),
             _ => trimmed.to_string(),
         }
+    }
+
+    fn normalize_day_value(value: &str) -> String {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return value.to_string();
+        }
+
+        if let Ok(day_num) = trimmed.parse::<u8>()
+            && (1..=31).contains(&day_num)
+        {
+            return format!("{:02}", day_num);
+        }
+
+        trimmed.to_string()
     }
 
     fn parse_slugified_keywords(value: &str) -> Vec<String> {
@@ -558,6 +575,20 @@ mod tests {
                 "ai-ml".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_day_numeric_values_to_zero_prefixed_numeric() {
+        let src = r#"
+@article{k1,
+  title = {T},
+  day = {5}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with numeric day");
+        let entry = &entries[0];
+        assert_eq!(entry.fields.get("day"), Some(&"05".to_string()));
     }
 
     #[test]

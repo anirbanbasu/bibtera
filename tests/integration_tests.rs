@@ -123,6 +123,38 @@ fn test_template_renders_non_standard_fields() {
 }
 
 #[test]
+fn test_template_renders_raw_bibtex_field() {
+    let src = r#"
+@article{k1,
+  author = {Doe, John},
+  title = {Test Title},
+  year = {2024},
+  abstract = {A short abstract}
+}
+"#;
+
+    let entries = BibTeXParser::parse_str(src).expect("parse source");
+    let entry = entries.first().expect("entry exists");
+
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = temp_dir().join("test_raw_bibtex_template.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "{{ raw_bibtex }}\n";
+    fs::write(&temp_file, template_content).expect("write template");
+
+    engine.add_template(&temp_file).expect("add template");
+    let rendered = engine
+        .render_entry("test_raw_bibtex_template", entry)
+        .expect("render entry");
+
+    assert!(rendered.contains("@article{k1,"));
+    assert!(rendered.contains("abstract = {A short abstract}"));
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn test_cli_transform_parsing() {
     let cli = Cli::try_parse_from([
         "bibtera",

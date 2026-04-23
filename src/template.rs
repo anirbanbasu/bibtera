@@ -150,6 +150,9 @@ impl TemplateEngine {
             context.insert("year", year);
         }
 
+        // Add raw BibTeX representation
+        context.insert("raw_bibtex", &entry.raw_bibtex);
+
         // Add fields as object
         let fields: HashMap<&str, &str> = entry
             .fields

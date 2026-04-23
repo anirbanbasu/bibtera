@@ -53,6 +53,9 @@ pub struct BibTeXEntry {
     /// Publication year
     pub year: Option<String>,
 
+    /// Canonical raw BibTeX text for this entry
+    pub raw_bibtex: String,
+
     /// Additional fields (journal, publisher, volume, pages, etc.)
     pub fields: HashMap<String, String>,
 }
@@ -83,6 +86,7 @@ impl BibTeXEntry {
             author_parts,
             title,
             year: None,
+            raw_bibtex: String::new(),
             fields: HashMap::new(),
         }
     }
@@ -96,6 +100,12 @@ impl BibTeXEntry {
     /// Add a field to the entry
     pub fn with_field(mut self, key: String, value: String) -> Self {
         self.fields.insert(key, value);
+        self
+    }
+
+    /// Set raw BibTeX representation
+    pub fn with_raw_bibtex(mut self, raw_bibtex: String) -> Self {
+        self.raw_bibtex = raw_bibtex;
         self
     }
 
@@ -233,12 +243,15 @@ impl BibTeXParser {
 
     /// Convert BibLatex entry to our internal representation
     fn convert_entry(entry: biblatex::Entry) -> BibTeXEntry {
-        let key = entry.key;
-        let entry_type = entry.entry_type.to_string();
+        let biblatex::Entry {
+            key,
+            entry_type,
+            fields: all_fields,
+        } = entry;
+        let entry_type = entry_type.to_string();
 
         // Extract authors
-        let author_parts = entry
-            .fields
+        let author_parts = all_fields
             .get("author")
             .map(|authors| Self::parse_authors(authors))
             .unwrap_or_default();
@@ -248,18 +261,19 @@ impl BibTeXParser {
             .collect::<Vec<_>>();
 
         // Extract title
-        let title = entry
-            .fields
+        let title = all_fields
             .get("title")
             .map(|t| t.format_verbatim())
             .unwrap_or_default();
 
         // Extract year
-        let year = entry.fields.get("year").map(|y| y.format_verbatim());
+        let year = all_fields.get("year").map(|y| y.format_verbatim());
+
+        let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields);
 
         // Build fields map with remaining fields
         let mut fields = HashMap::new();
-        for (k, v) in entry.fields {
+        for (k, v) in all_fields {
             if k != "author" && k != "title" && k != "year" {
                 fields.insert(k, v.format_verbatim());
             }
@@ -272,8 +286,24 @@ impl BibTeXParser {
             author_parts,
             title,
             year,
+            raw_bibtex,
             fields,
         }
+    }
+
+    fn build_raw_bibtex(
+        key: &str,
+        entry_type: &str,
+        fields: &std::collections::BTreeMap<String, biblatex::Chunks>,
+    ) -> String {
+        let mut raw = format!("@{}{{{},\n", entry_type, key);
+
+        for (field, value) in fields {
+            raw.push_str(&format!("  {} = {{{}}},\n", field, value.format_verbatim()));
+        }
+
+        raw.push('}');
+        raw
     }
 
     /// Parse author field (can be "Last, First" or "First Last" format)
@@ -370,12 +400,14 @@ mod tests {
             "Test Title".to_string(),
         )
         .with_year("2024".to_string())
+        .with_raw_bibtex("@article{test2024,\n}\n".to_string())
         .with_field("journal".to_string(), "Test Journal".to_string());
 
         assert_eq!(entry.key, "test2024");
         assert_eq!(entry.entry_type, "article");
         assert_eq!(entry.authors.len(), 1);
         assert_eq!(entry.year, Some("2024".to_string()));
+        assert!(entry.raw_bibtex.contains("@article{test2024"));
         assert_eq!(
             entry.fields.get("journal"),
             Some(&"Test Journal".to_string())
@@ -408,5 +440,11 @@ mod tests {
             Some(&"privacy,security".to_string())
         );
         assert_eq!(entry.fields.get("customflag"), Some(&"enabled".to_string()));
+        assert!(entry.raw_bibtex.contains("@article{k1"));
+        assert!(
+            entry
+                .raw_bibtex
+                .contains("abstract = {A custom abstract field}")
+        );
     }
 }

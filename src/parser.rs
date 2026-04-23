@@ -381,4 +381,32 @@ mod tests {
             Some(&"Test Journal".to_string())
         );
     }
+
+    #[test]
+    fn test_parse_non_standard_fields() {
+        let src = r#"
+@article{k1,
+  author = {Doe, John},
+  title = {T},
+  year = {2024},
+  abstract = {A custom abstract field},
+  keywords = {privacy,security},
+  customflag = {enabled}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with custom fields");
+        assert_eq!(entries.len(), 1);
+
+        let entry = &entries[0];
+        assert_eq!(
+            entry.fields.get("abstract"),
+            Some(&"A custom abstract field".to_string())
+        );
+        assert_eq!(
+            entry.fields.get("keywords"),
+            Some(&"privacy,security".to_string())
+        );
+        assert_eq!(entry.fields.get("customflag"), Some(&"enabled".to_string()));
+    }
 }

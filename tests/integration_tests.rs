@@ -90,6 +90,39 @@ fn test_template_load_error_exposes_underlying_tera_parser_issue() {
 }
 
 #[test]
+fn test_template_renders_non_standard_fields() {
+    let src = r#"
+@article{k1,
+  author = {Doe, John},
+  title = {Test Title},
+  year = {2024},
+  abstract = {A short abstract},
+  keywords = {privacy,security}
+}
+"#;
+
+    let entries = BibTeXParser::parse_str(src).expect("parse source");
+    let entry = entries.first().expect("entry exists");
+
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = temp_dir().join("test_non_standard_fields_template.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "Abstract: {{ fields.abstract }}\nKeywords: {{ fields.keywords }}\n";
+    fs::write(&temp_file, template_content).expect("write template");
+
+    engine.add_template(&temp_file).expect("add template");
+    let rendered = engine
+        .render_entry("test_non_standard_fields_template", entry)
+        .expect("render entry");
+
+    assert!(rendered.contains("Abstract: A short abstract"));
+    assert!(rendered.contains("Keywords: privacy,security"));
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn test_cli_transform_parsing() {
     let cli = Cli::try_parse_from([
         "bibtera",

@@ -275,7 +275,12 @@ impl BibTeXParser {
         let mut fields = HashMap::new();
         for (k, v) in all_fields {
             if k != "author" && k != "title" && k != "year" {
-                fields.insert(k, v.format_verbatim());
+                let mut value = v.format_verbatim();
+                if k == "month" {
+                    value = Self::normalize_month_value(&value);
+                }
+
+                fields.insert(k, value);
             }
         }
 
@@ -304,6 +309,39 @@ impl BibTeXParser {
 
         raw.push('}');
         raw
+    }
+
+    fn normalize_month_value(value: &str) -> String {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return value.to_string();
+        }
+
+        if let Ok(month_num) = trimmed.parse::<u8>() {
+            if (1..=12).contains(&month_num) {
+                return format!("{:02}", month_num);
+            }
+
+            return trimmed.to_string();
+        }
+
+        let normalized = trimmed.trim_end_matches('.').to_ascii_lowercase();
+
+        match normalized.as_str() {
+            "january" | "jan" => "01".to_string(),
+            "february" | "feb" => "02".to_string(),
+            "march" | "mar" => "03".to_string(),
+            "april" | "apr" => "04".to_string(),
+            "may" => "05".to_string(),
+            "june" | "jun" => "06".to_string(),
+            "july" | "jul" => "07".to_string(),
+            "august" | "aug" => "08".to_string(),
+            "september" | "sep" | "sept" => "09".to_string(),
+            "october" | "oct" => "10".to_string(),
+            "november" | "nov" => "11".to_string(),
+            "december" | "dec" => "12".to_string(),
+            _ => trimmed.to_string(),
+        }
     }
 
     /// Parse author field (can be "Last, First" or "First Last" format)
@@ -446,5 +484,33 @@ mod tests {
                 .raw_bibtex
                 .contains("abstract = {A custom abstract field}")
         );
+    }
+
+    #[test]
+    fn test_parse_month_textual_values_to_zero_prefixed_numeric() {
+        let src = r#"
+@article{k1,
+  title = {T},
+  month = {Feb}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with textual month");
+        let entry = &entries[0];
+        assert_eq!(entry.fields.get("month"), Some(&"02".to_string()));
+    }
+
+    #[test]
+    fn test_parse_month_numeric_values_to_zero_prefixed_numeric() {
+        let src = r#"
+@article{k1,
+  title = {T},
+  month = {3}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with numeric month");
+        let entry = &entries[0];
+        assert_eq!(entry.fields.get("month"), Some(&"03".to_string()));
     }
 }

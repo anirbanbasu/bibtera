@@ -245,6 +245,7 @@ fn template_available_fields_for_type(fields: &[&str]) -> BTreeMap<String, Strin
     map.insert("year".to_string(), "string|null".to_string());
     map.insert("raw_bibtex".to_string(), "string".to_string());
     map.insert("fields".to_string(), "map<string,string>".to_string());
+    map.insert("fields.month".to_string(), "string".to_string());
 
     // Known type-specific BibTeX fields exposed under `fields`.
     for field in BTreeSet::from_iter(fields.iter().copied()) {

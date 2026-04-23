@@ -15,18 +15,30 @@ use bibtera::template::TemplateEngine;
 use bibtera::utils;
 
 fn main() {
-    match run() {
+    let cli = Cli::parse();
+    let verbose = matches!(&cli.command, Commands::Transform(args) if args.verbose);
+
+    match run(cli) {
         Ok(_) => process::exit(0),
         Err(e) => {
             eprintln!("Error: {}", e);
+
+            if verbose {
+                let causes = e.chain().skip(1).collect::<Vec<_>>();
+                if !causes.is_empty() {
+                    eprintln!("Caused by:");
+                    for (index, cause) in causes.iter().enumerate() {
+                        eprintln!("  {}: {}", index + 1, cause);
+                    }
+                }
+            }
+
             process::exit(1);
         }
     }
 }
 
-fn run() -> Result<()> {
-    let cli = Cli::parse();
-
+fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Transform(args) => {
             let config = TransformConfig::from_args(args)?;
@@ -48,7 +60,7 @@ fn run_transform(config: TransformConfig) -> Result<()> {
         TemplateEngine::new().context("Failed to initialize template engine")?;
     template_engine
         .add_template(&config.template)
-        .context("Failed to load template")?;
+        .with_context(|| format!("Failed to load template: {}", config.template))?;
 
     let entries = BibTeXParser::parse_file(&config.input).context("Failed to parse BibTeX file")?;
     let filtered_entries = entries

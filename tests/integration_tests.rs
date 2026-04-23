@@ -71,6 +71,25 @@ fn test_template_engine_rendering_with_author_parts() {
 }
 
 #[test]
+fn test_template_load_error_exposes_underlying_tera_parser_issue() {
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = temp_dir().join("test_template_invalid_comment.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "<!-- {% alert(type=\"info\") %} -->\nHello\n<!-- {% end %} -->";
+    fs::write(&temp_file, template_content).expect("write invalid template");
+
+    let error = engine
+        .add_template(&temp_file)
+        .expect_err("template load should fail");
+    let error_text = format!("{error:#}");
+
+    assert!(error_text.contains("alert") || error_text.contains("end"));
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn test_cli_transform_parsing() {
     let cli = Cli::try_parse_from([
         "bibtera",

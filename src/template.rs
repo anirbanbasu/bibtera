@@ -93,11 +93,9 @@ impl TemplateEngine {
 
         let template_source = fs::read_to_string(path)
             .with_context(|| format!("Failed to read template file '{}'", path.display()))?;
-        let processed_template = preprocess_template_source(&template_source)
-            .with_context(|| format!("Failed to preprocess template file '{}'", path.display()))?;
 
         self.tera
-            .add_raw_template(&template_name, &processed_template)
+            .add_raw_template(&template_name, &template_source)
             .with_context(|| {
                 format!(
                     "Failed to load template file '{}' as template '{}'",
@@ -205,74 +203,6 @@ impl Default for TemplateEngine {
     }
 }
 
-fn preprocess_template_source(source: &str) -> Result<String> {
-    let mut result = String::with_capacity(source.len());
-    let mut in_literal_block = false;
-
-    for line in source.split_inclusive('\n') {
-        let (line_body, line_ending) = split_line_ending(line);
-        let trimmed = line_body.trim_start();
-        let indentation = &line_body[..line_body.len() - trimmed.len()];
-
-        if in_literal_block {
-            if trimmed == "[/LITERAL]" {
-                result.push_str("{% endraw %}");
-                result.push_str(line_ending);
-                in_literal_block = false;
-            } else {
-                result.push_str(line);
-            }
-
-            continue;
-        }
-
-        if trimmed == "[LITERAL]" {
-            result.push_str(indentation);
-            result.push_str("{% raw %}");
-            result.push_str(line_ending);
-            in_literal_block = true;
-            continue;
-        }
-
-        if trimmed == "[/LITERAL]" {
-            return Err(TemplateError::LoadError(
-                "Encountered [/LITERAL] without a matching [LITERAL]".to_string(),
-            )
-            .into());
-        }
-
-        if let Some(literal) = trimmed.strip_prefix("LITERAL:") {
-            result.push_str(indentation);
-            result.push_str("{% raw %}");
-            result.push_str(literal);
-            result.push_str(line_ending);
-            result.push_str("{% endraw %}");
-            continue;
-        }
-
-        result.push_str(line);
-    }
-
-    if in_literal_block {
-        return Err(TemplateError::LoadError(
-            "Encountered [LITERAL] without a matching [/LITERAL]".to_string(),
-        )
-        .into());
-    }
-
-    Ok(result)
-}
-
-fn split_line_ending(line: &str) -> (&str, &str) {
-    if let Some(stripped) = line.strip_suffix("\r\n") {
-        (stripped, "\r\n")
-    } else if let Some(stripped) = line.strip_suffix('\n') {
-        (stripped, "\n")
-    } else {
-        (line, "")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,10 +251,10 @@ mod tests {
     }
 
     #[test]
-    fn test_render_entry_with_literal_line_marker() {
+    fn test_render_entry_with_tera_raw_line() {
         let mut engine = TemplateEngine::new().unwrap();
-        let temp_file = std::env::temp_dir().join("test_literal_line_template.md");
-        let template_content = "LITERAL:{{ zola.title }}\nTitle: {{ title }}\n";
+        let temp_file = std::env::temp_dir().join("test_tera_raw_line_template.md");
+        let template_content = "{% raw %}{{ zola.title }}{% endraw %}\nTitle: {{ title }}\n";
         std::fs::write(&temp_file, template_content).unwrap();
 
         engine.add_template(&temp_file).unwrap();
@@ -337,7 +267,7 @@ mod tests {
         );
 
         let rendered = engine
-            .render_entry("test_literal_line_template", &entry)
+            .render_entry("test_tera_raw_line_template", &entry)
             .unwrap();
         assert!(rendered.contains("{{ zola.title }}"));
         assert!(rendered.contains("Title: Test Title"));
@@ -346,15 +276,15 @@ mod tests {
     }
 
     #[test]
-    fn test_render_entry_with_literal_block_markers() {
+    fn test_render_entry_with_tera_raw_block() {
         let mut engine = TemplateEngine::new().unwrap();
-        let temp_file = std::env::temp_dir().join("test_literal_block_template.md");
+        let temp_file = std::env::temp_dir().join("test_tera_raw_block_template.md");
         let template_content = concat!(
-            "[LITERAL]\n",
+            "{% raw %}\n",
             "{% alert(type=\"info\", title=\"Author information\") %}\n",
             "{{ authors | join(sep=\"; \") }}\n",
             "{% end %}\n",
-            "[/LITERAL]\n",
+            "{% endraw %}\n",
             "Title: {{ title }}\n"
         );
         std::fs::write(&temp_file, template_content).unwrap();
@@ -369,7 +299,7 @@ mod tests {
         );
 
         let rendered = engine
-            .render_entry("test_literal_block_template", &entry)
+            .render_entry("test_tera_raw_block_template", &entry)
             .unwrap();
         assert!(rendered.contains("{% alert(type=\"info\", title=\"Author information\") %}"));
         assert!(rendered.contains("{{ authors | join(sep=\"; \") }}"));
@@ -380,14 +310,14 @@ mod tests {
     }
 
     #[test]
-    fn test_add_template_fails_for_unclosed_literal_block() {
+    fn test_add_template_fails_for_unclosed_tera_raw_block() {
         let mut engine = TemplateEngine::new().unwrap();
-        let temp_file = std::env::temp_dir().join("test_literal_block_unclosed.md");
-        std::fs::write(&temp_file, "[LITERAL]\n{{ downstream.syntax }}\n").unwrap();
+        let temp_file = std::env::temp_dir().join("test_tera_raw_block_unclosed.md");
+        std::fs::write(&temp_file, "{% raw %}\n{{ downstream.syntax }}\n").unwrap();
 
         let error = engine.add_template(&temp_file).unwrap_err();
         let error_text = format!("{error:#}");
-        assert!(error_text.contains("matching [/LITERAL]"));
+        assert!(error_text.contains("Failed to load template file"));
 
         let _ = std::fs::remove_file(temp_file);
     }

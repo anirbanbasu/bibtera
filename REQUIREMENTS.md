@@ -2,7 +2,7 @@
 
 The following specify the functional and non-functional requirements for the project.
 
-**Requirements specification version**: _v2026-04-24-001-with-todos_.
+**Requirements specification version**: _v2026-04-24-002-with-todos_.
 
 ## Functional requirements
 
@@ -17,8 +17,7 @@ The following functional requirements are being improved iteratively as the proj
     1. The file name of the generated file should be derived from the BibTeX entry's key. The file name must not contain any characters that are not allowed in file names (e.g., slashes, colons, etc.) and should ensure that the resulting file name is unique within the output directory to prevent overwriting existing files.
         1. Use a UUID7 representation with its 16-byte input from a SHAKE-128 hash of the BibTeX entry's key to generate a unique file name.
         2. Alternatively, slugify the BibTeX entry's key by replacing non-alphanumeric characters with underscores. The choice between these two approaches can be made configurable through a command-line option (i.e., `--file-name-strategy`, see CLI options).
-    2. There is a special case where a template specification may contain Tera or Jinja-like syntax that will be parsed by a down stream template parser, such as the Zola static site generator. In this case, the application should not attempt to parse the template specification as a Tera template and instead should treat it as a literal string to be included in the output file. The application should provide a way for users to specify that the template specification should be treated as a literal string, such as by using a special syntax.
-        1. For lines that need to be treated as literal strings, users can prefix the line with a special marker (e.g., `LITERAL:` for inline and `[LITERAL]` and `[/LITERAL]` for blocks) to indicate that the line(s) should be included in the output file without parsing it as a Tera template. The application should then remove the marker and include the rest of the line as-is in the generated output file.
+    2. There is a special case where a template specification may contain Tera or Jinja-like syntax that will be parsed by a down stream template parser, such as the Zola static site generator. In this case, the application should not attempt to parse the template specification as a Tera template and instead should treat it as a literal string to be included in the output file. Tera already supports this using `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw). This applies to both one-line and multi-line ignored sections.
     3. The application must be able to output a special field called `raw_bibtex` that contains the raw BibTeX entry as a string, which can be used in the Tera templates for rendering the original BibTeX entry if needed.
 3. The application must provide a command-line interface for users to specify input files, output directories, and template files.
     1. The CLI should expose two sub-commands: `transform` and `info`. The `transform` sub-command should be used for transforming BibTeX entries into files using Tera templates, while the `info` sub-command should be used for displaying information about the parsed BibTeX entries without generating any files. The purpose of the `info` sub-command is to tell the user about the information that can be used in the Tera templates for rendering the output files.

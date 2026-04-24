@@ -4,9 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use bibtera::cli::{Cli, Commands};
 use bibtera::config::{InfoConfig, TransformConfig};
@@ -52,6 +54,8 @@ fn run(cli: Cli) -> Result<()> {
 }
 
 fn run_transform(config: TransformConfig) -> Result<()> {
+    let started_at = Instant::now();
+
     if config.verbose {
         eprintln!("Configuration: {:?}", config);
     }
@@ -76,20 +80,33 @@ fn run_transform(config: TransformConfig) -> Result<()> {
         );
     }
 
-    render_entries(&config, &template_engine, &filtered_entries)?;
+    let stats = render_entries(&config, &template_engine, &filtered_entries)?;
 
     if config.verbose {
         eprintln!("Successfully processed {} entries", filtered_entries.len());
     }
 
+    eprintln!(
+        "Summary: processed {} entries, generated {} files, total time {:?}",
+        stats.entries_processed,
+        stats.files_generated,
+        started_at.elapsed()
+    );
+
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct TransformStats {
+    entries_processed: usize,
+    files_generated: usize,
 }
 
 fn render_entries(
     config: &TransformConfig,
     template_engine: &TemplateEngine,
     entries: &[&bibtera::parser::BibTeXEntry],
-) -> Result<()> {
+) -> Result<TransformStats> {
     let template_extension =
         utils::extension(&config.template).context("Template file must have an extension")?;
 
@@ -102,8 +119,27 @@ fn render_entries(
         .and_then(|name| name.to_str())
         .context("Invalid template path")?;
 
+    let mut stats = TransformStats::default();
+
+    let progress = if config.verbose {
+        None
+    } else {
+        let pb = ProgressBar::new(entries.len() as u64);
+        pb.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] {wide_bar} {pos}/{len} entries | files generated: {msg}",
+            )
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
+            .progress_chars("=>-"),
+        );
+        pb.set_message("0");
+        Some(pb)
+    };
+
     // Sequential processing keeps output order predictable based on input order.
     for entry in entries {
+        stats.entries_processed += 1;
+
         let filename = utils::generate_output_filename(
             &entry.key,
             config.file_name_strategy,
@@ -117,11 +153,19 @@ fn render_entries(
 
         if config.dry_run {
             println!("{} -> {}", entry.key, filename);
+            if let Some(pb) = &progress {
+                pb.set_message(stats.files_generated.to_string());
+                pb.inc(1);
+            }
             continue;
         }
 
         if output_path.exists() && !config.overwrite && !confirm_overwrite(&output_path)? {
             eprintln!("Warning: Skipped existing file: {}", output_path.display());
+            if let Some(pb) = &progress {
+                pb.set_message(stats.files_generated.to_string());
+                pb.inc(1);
+            }
             continue;
         }
 
@@ -131,9 +175,20 @@ fn render_entries(
 
         utils::safe_write(&output_path, rendered.as_bytes())
             .with_context(|| format!("Failed to write output file: {}", output_path.display()))?;
+
+        stats.files_generated += 1;
+
+        if let Some(pb) = &progress {
+            pb.set_message(stats.files_generated.to_string());
+            pb.inc(1);
+        }
     }
 
-    Ok(())
+    if let Some(pb) = progress {
+        pb.finish_with_message(stats.files_generated.to_string());
+    }
+
+    Ok(stats)
 }
 
 fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {

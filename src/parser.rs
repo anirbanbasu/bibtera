@@ -192,14 +192,11 @@ impl BibTeXParser {
             Self::collect_bib_files_flat(path)?
         };
 
-        // Parse each file
+        // Parse each file and fail immediately if any file cannot be parsed.
         for file in bib_files {
-            match Self::parse_file(&file) {
-                Ok(file_entries) => entries.extend(file_entries),
-                Err(e) => {
-                    eprintln!("Warning: Failed to parse {}: {}", file.display(), e);
-                }
-            }
+            let file_entries = Self::parse_file(&file)
+                .with_context(|| format!("Failed to parse BibTeX file: {}", file.display()))?;
+            entries.extend(file_entries);
         }
 
         if entries.is_empty() {

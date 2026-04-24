@@ -54,31 +54,6 @@ impl TemplateEngine {
         })
     }
 
-    /// Create a new template engine with custom templates from a directory
-    pub fn from_directory<P: AsRef<Path>>(dir: P) -> Result<Self> {
-        let dir = dir.as_ref();
-
-        if !dir.exists() {
-            return Err(TemplateError::NotFound(format!(
-                "Template directory does not exist: {}",
-                dir.display()
-            ))
-            .into());
-        }
-
-        let tera = Tera::default();
-
-        let mut engine = Self {
-            tera,
-            custom_templates: Vec::new(),
-        };
-
-        // Load all template files from the directory
-        engine.load_templates_from_dir(dir)?;
-
-        Ok(engine)
-    }
-
     /// Add a custom template file
     pub fn add_template<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
@@ -105,24 +80,6 @@ impl TemplateEngine {
             })?;
 
         self.custom_templates.push(path.to_path_buf());
-
-        Ok(())
-    }
-
-    /// Load templates from a directory
-    fn load_templates_from_dir(&mut self, dir: &Path) -> Result<()> {
-        if !dir.exists() {
-            return Ok(());
-        }
-
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_file() {
-                self.add_template(&path)?;
-            }
-        }
 
         Ok(())
     }

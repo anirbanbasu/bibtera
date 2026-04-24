@@ -71,13 +71,13 @@ generate-docs-and-show-in-browser:
     @echo "Documentation generated and opened in browser."
 
 # Run comprehensive tests, including integration tests
-test-comprehensive:
+test:
     @echo "Running all tests, including integration tests..."
     @cargo test -- --include-ignored --test-threads=1
     @echo "All tests complete."
 
 # Generate comprehensive test coverage report (including integration tests) and show in browser
-coverage-comprehensive-and-show-in-browser:
+coverage-and-show-in-browser:
     @echo "Generating comprehensive test coverage report (including integration tests) with --test-threads=1 for stable integration coverage, and opening it in browser..."
     @cargo llvm-cov --all-targets --html --open -- --include-ignored --test-threads=1
     @echo "Comprehensive coverage report generated and opened in browser."

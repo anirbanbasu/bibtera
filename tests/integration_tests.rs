@@ -18,8 +18,8 @@ fn temp_dir() -> PathBuf {
 
 #[test]
 fn test_parse_sample_bib() {
-    let sample_file = examples_dir().join("sample.bib");
-    let entries = BibTeXParser::parse_file(&sample_file).expect("parse sample.bib");
+    let sample_file = examples_dir().join("input_sample.bib");
+    let entries = BibTeXParser::parse_file(&sample_file).expect("parse input_sample.bib");
 
     assert!(!entries.is_empty());
     assert_eq!(entries[0].key, "smith2020machine");

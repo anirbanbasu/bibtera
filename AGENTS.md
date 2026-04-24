@@ -56,8 +56,7 @@ The project is structured into the following modules within the `src` directory:
 
 Outside the `src` directory, we have:
 
-- `templates/`: A directory to store Tera template files.
-- `examples/`: A directory to store example BibTeX files and generated Markdown outputs.
+- `examples/`: A directory to store example of inputs, templates and outputs.
 - `tests/`: A directory to store integration tests, if needed in the future.
 
 ## Platform support

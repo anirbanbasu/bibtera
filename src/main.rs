@@ -121,6 +121,79 @@ fn render_entries(
 
     let mut stats = TransformStats::default();
 
+    if config.single {
+        stats.entries_processed = entries.len();
+
+        let progress = if config.verbose {
+            None
+        } else {
+            let pb = ProgressBar::new(1);
+            pb.set_style(
+                ProgressStyle::with_template(
+                    "[{elapsed_precise}] {wide_bar} {pos}/{len} tasks | files generated: {msg}",
+                )
+                .unwrap_or_else(|_| ProgressStyle::default_bar())
+                .progress_chars("=>-"),
+            );
+            pb.set_message("0");
+            Some(pb)
+        };
+
+        let filename = single_output_filename(&config.input, &template_extension);
+        let output_path = PathBuf::from(&config.output).join(&filename);
+
+        if config.verbose {
+            eprintln!(
+                "Processing {} entries -> {}",
+                stats.entries_processed, filename
+            );
+        }
+
+        if config.dry_run {
+            println!("entries -> {}", filename);
+            if let Some(pb) = &progress {
+                pb.set_message(stats.files_generated.to_string());
+                pb.inc(1);
+                pb.finish_with_message(stats.files_generated.to_string());
+            }
+            return Ok(stats);
+        }
+
+        if output_path.exists() && !config.overwrite && !confirm_overwrite(&output_path)? {
+            eprintln!("Warning: Skipped existing file: {}", output_path.display());
+            if let Some(pb) = &progress {
+                pb.set_message(stats.files_generated.to_string());
+                pb.inc(1);
+                pb.finish_with_message(stats.files_generated.to_string());
+            }
+            return Ok(stats);
+        }
+
+        let owned_entries = entries
+            .iter()
+            .map(|entry| (*entry).clone())
+            .collect::<Vec<_>>();
+        let rendered = template_engine
+            .render_entries(template_name, &owned_entries)
+            .with_context(|| {
+                format!(
+                    "Failed to render entries in single mode using template: {}",
+                    template_name
+                )
+            })?;
+
+        utils::safe_write(&output_path, rendered.as_bytes())
+            .with_context(|| format!("Failed to write output file: {}", output_path.display()))?;
+
+        stats.files_generated = 1;
+        if let Some(pb) = &progress {
+            pb.set_message(stats.files_generated.to_string());
+            pb.inc(1);
+            pb.finish_with_message(stats.files_generated.to_string());
+        }
+        return Ok(stats);
+    }
+
     let progress = if config.verbose {
         None
     } else {
@@ -189,6 +262,11 @@ fn render_entries(
     }
 
     Ok(stats)
+}
+
+fn single_output_filename(input_path: &str, extension: &str) -> String {
+    let stem = utils::stem(input_path).unwrap_or_else(|| "entries".to_string());
+    format!("{}.{}", stem, extension)
 }
 
 fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
@@ -332,5 +410,11 @@ mod tests {
                 .expect("article map")
                 .contains_key("author_parts")
         );
+    }
+
+    #[test]
+    fn test_single_output_filename_uses_input_stem_and_template_extension() {
+        let filename = single_output_filename("examples/input_sample.bib", "md");
+        assert_eq!(filename, "input_sample.md");
     }
 }

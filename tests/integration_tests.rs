@@ -217,6 +217,40 @@ fn test_template_renders_slugified_keywords_field() {
 }
 
 #[test]
+fn test_template_renders_entries_variable_in_single_mode_template() {
+    let src = r#"
+@article{k1,
+    title = {First Title}
+}
+
+@article{k2,
+    title = {Second Title}
+}
+"#;
+
+    let entries = BibTeXParser::parse_str(src).expect("parse source");
+
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = temp_dir().join("test_entries_variable_template.md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content =
+        "Count: {{ entries | length }}\nKeys: {% for e in entries %}{{ e.key }} {% endfor %}\n";
+    fs::write(&temp_file, template_content).expect("write template");
+
+    engine.add_template(&temp_file).expect("add template");
+    let rendered = engine
+        .render_entries("test_entries_variable_template", &entries)
+        .expect("render entries");
+
+    assert!(rendered.contains("Count: 2"));
+    assert!(rendered.contains("k1"));
+    assert!(rendered.contains("k2"));
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn test_cli_transform_parsing() {
     let cli = Cli::try_parse_from([
         "bibtera",
@@ -238,6 +272,33 @@ fn test_cli_transform_parsing() {
             assert_eq!(args.output, "out");
             assert_eq!(args.template, "tmpl.md");
             assert_eq!(args.file_name_strategy, FileNameStrategy::Slugify);
+            assert!(!args.single);
+        }
+        _ => panic!("expected transform command"),
+    }
+}
+
+#[test]
+fn test_cli_transform_parsing_single_mode() {
+    let cli = Cli::try_parse_from([
+        "bibtera",
+        "transform",
+        "-i",
+        "in.bib",
+        "-o",
+        "out",
+        "-t",
+        "tmpl.md",
+        "--single",
+    ])
+    .expect("parse cli");
+
+    match cli.command {
+        Commands::Transform(args) => {
+            assert_eq!(args.input, "in.bib");
+            assert_eq!(args.output, "out");
+            assert_eq!(args.template, "tmpl.md");
+            assert!(args.single);
         }
         _ => panic!("expected transform command"),
     }

@@ -1,0 +1,33 @@
+{
+  "entries": [
+    {% for entry in entries %
+    }
+    {
+      "key": "{{ entry.key }}",
+      "entry_type": "{{ entry.entry_type }}",
+      "authors": [
+        {% for author in entry.authors %
+        }"{{ author }}"{% if not loop.last %
+        },
+        {% endif %
+        }{% endfor %
+        }
+      ],
+      "title": "{{ entry.title }}",
+      "year": "{{ entry.year | default(value='') }}",
+      "fields": {
+        {% for key, value in entry.fields %
+        }"{{ key }}": "{{ value }}"{% if not loop.last %
+        },
+        {% endif %
+        }{% endfor %
+        }
+      }
+    }{% if not loop.last %
+    },
+    {% endif %
+    }
+    {% endfor %
+    }
+  ]
+}

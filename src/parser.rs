@@ -615,4 +615,12 @@ mod tests {
         let entry = &entries[0];
         assert_eq!(entry.fields.get("month"), Some(&"03".to_string()));
     }
+
+    #[test]
+    fn test_parse_invalid_bibtex_returns_error() {
+        let src = "@article{missing_comma title = {T}}";
+        let error = BibTeXParser::parse_str(src).expect_err("invalid BibTeX should fail");
+        let error_text = format!("{error:#}");
+        assert!(error_text.contains("Failed to parse BibTeX content"));
+    }
 }

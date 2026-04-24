@@ -72,6 +72,10 @@ pub struct TransformArgs {
     #[arg(long, value_enum, default_value_t = FileNameStrategy::Uuid7)]
     pub file_name_strategy: FileNameStrategy,
 
+    /// Render all selected entries in a single output file via the template `entries` variable
+    #[arg(long)]
+    pub single: bool,
+
     /// Enable verbose transformation logs
     #[arg(short, long)]
     pub verbose: bool,

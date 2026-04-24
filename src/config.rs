@@ -95,6 +95,8 @@ pub struct TransformConfig {
     pub overwrite: bool,
     /// Filename strategy
     pub file_name_strategy: FileNameStrategy,
+    /// Render all selected entries into one output file
+    pub single: bool,
     /// Verbose mode
     pub verbose: bool,
 }
@@ -110,6 +112,7 @@ impl TransformConfig {
             dry_run: args.dry_run,
             overwrite: args.overwrite,
             file_name_strategy: args.file_name_strategy.into(),
+            single: args.single,
             verbose: args.verbose,
         };
 

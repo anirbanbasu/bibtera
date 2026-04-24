@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "**/examples/template_*.json": "plaintext",
+        "template_*.json": "plaintext"
+    }
+}

@@ -1,33 +1,18 @@
 {
   "entries": [
-    {% for entry in entries %
-    }
+    {% for entry in entries %}
     {
-      "key": "{{ entry.key }}",
-      "entry_type": "{{ entry.entry_type }}",
+      "key": {{ entry.key | json_encode }},
+      "entry_type": {{ entry.entry_type | json_encode }},
       "authors": [
-        {% for author in entry.authors %
-        }"{{ author }}"{% if not loop.last %
-        },
-        {% endif %
-        }{% endfor %
-        }
+        {% for author in entry.authors %}{{ author | json_encode }}{% if not loop.last %},{% endif %}{% endfor %}
       ],
-      "title": "{{ entry.title }}",
-      "year": "{{ entry.year | default(value='') }}",
+      "title": {{ entry.title | json_encode }},
+      "year": {{ entry.year | default(value='') | json_encode }},
       "fields": {
-        {% for key, value in entry.fields %
-        }"{{ key }}": "{{ value }}"{% if not loop.last %
-        },
-        {% endif %
-        }{% endfor %
-        }
+        {% for key, value in entry.fields %}{{ key | json_encode }}: {{ value | json_encode }}{% if not loop.last %},
+        {% endif %}{% endfor %}
       }
-    }{% if not loop.last %
-    },
-    {% endif %
-    }
-    {% endfor %
-    }
+    }{% if not loop.last %},{% endif %}{% endfor %}
   ]
 }

@@ -139,7 +139,7 @@ fn render_entries(
             Some(pb)
         };
 
-        let filename = single_output_filename(&config.input, &template_extension);
+        let filename = single_output_filename(&config.input, &config.template, &template_extension);
         let output_path = PathBuf::from(&config.output).join(&filename);
 
         if config.verbose {
@@ -264,9 +264,10 @@ fn render_entries(
     Ok(stats)
 }
 
-fn single_output_filename(input_path: &str, extension: &str) -> String {
-    let stem = utils::stem(input_path).unwrap_or_else(|| "entries".to_string());
-    format!("{}.{}", stem, extension)
+fn single_output_filename(input_path: &str, template_path: &str, extension: &str) -> String {
+    let input_stem = utils::stem(input_path).unwrap_or_else(|| "entries".to_string());
+    let template_stem = utils::stem(template_path).unwrap_or_else(|| "output".to_string());
+    format!("{}_{}.{}", input_stem, template_stem, extension)
 }
 
 fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
@@ -413,8 +414,35 @@ mod tests {
     }
 
     #[test]
-    fn test_single_output_filename_uses_input_stem_and_template_extension() {
-        let filename = single_output_filename("examples/input_sample.bib", "md");
-        assert_eq!(filename, "input_sample.md");
+    fn test_single_output_filename_uses_input_and_template_stems() {
+        let filename = single_output_filename(
+            "examples/input_sample.bib",
+            "templates/sample_template.md",
+            "md",
+        );
+        assert_eq!(filename, "input_sample_sample_template.md");
+    }
+
+    #[test]
+    fn test_single_output_filename_with_different_extensions() {
+        let filename =
+            single_output_filename("data/references.bib", "output/template.html", "html");
+        assert_eq!(filename, "references_template.html");
+    }
+
+    #[test]
+    fn test_single_output_filename_with_complex_paths() {
+        let filename = single_output_filename(
+            "src/bib/my_references.bib",
+            "src/templates/my_template.json",
+            "json",
+        );
+        assert_eq!(filename, "my_references_my_template.json");
+    }
+
+    #[test]
+    fn test_single_output_filename_fallback_when_no_stems() {
+        let filename = single_output_filename(".", ".", "md");
+        assert_eq!(filename, "entries_output.md");
     }
 }

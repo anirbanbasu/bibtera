@@ -68,11 +68,11 @@ pub struct TransformArgs {
     #[arg(short = 'f', long)]
     pub overwrite: bool,
 
-    /// Output filename generation strategy
+    /// Output filename generation strategy, which has no effect when `--single` is specified
     #[arg(long, value_enum, default_value_t = FileNameStrategy::Uuid7)]
     pub file_name_strategy: FileNameStrategy,
 
-    /// Render all selected entries in a single output file via the template `entries` variable
+    /// Render all selected entries in a single output file via the template `entries` variable, where the output filename is derived from the input filename and the template filename
     #[arg(long)]
     pub single: bool,
 

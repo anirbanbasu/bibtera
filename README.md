@@ -1,6 +1,6 @@
 # BibTera: a BibTeX translator using the Tera templating engine
 
-Parse BibTeX entries and generate output in Markdown (amongst other formats) using Tera templates. The generated Markdown files can be used by static site generators, such as [Zola](https://github.com/getzola/zola).
+Parse BibTeX entries and generate output in Markdown (amongst other formats) using Python's [Jinja](https://github.com/pallets/jinja)-like [Tera templates](https://github.com/Keats/tera). The generated Markdown files can be used by static site generators, such as [Zola](https://github.com/getzola/zola).
 
 > [!CAUTION]
 > This project is in early development and may have breaking changes. Use with caution and report any issues you encounter.

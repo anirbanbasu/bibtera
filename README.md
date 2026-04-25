@@ -3,7 +3,7 @@
 Parse BibTeX entries and generate output in Markdown (amongst other formats) using Tera templates. The generated Markdown files can be used by static site generators, such as [Zola](https://github.com/getzola/zola).
 
 > [!CAUTION]
->This project is in early development and may have breaking changes. Use with caution and report any issues you encounter.
+> This project is in early development and may have breaking changes. Use with caution and report any issues you encounter.
 
 ## Installation
 
@@ -84,6 +84,29 @@ Behavior of `info`:
 
 - If entries are selected (through input and include/exclude filters), BibTera prints parsed key-value information for those entries.
 - If no entries are selected, BibTera prints a key-value overview of supported entry types and fields available to templates.
+
+For instance, the output displaying the available fields for the BibTeX entry type `@inproceedings`  looks like the following. Note that all `fields.*` are available for templating, but only a subset of them are guaranteed to be present for every entry of that type. Thus, `field.abstract` is not showed in the output below but it will be available if the BibTeX entry has the field specified.
+
+```json
+"inproceedings": {
+    "author_parts": "array<{first:string,last:string,full:string}>",
+    "authors": "array<string>",
+    "entry_type": "string",
+    "fields": "map<string,string>",
+    "fields.author": "string",
+    "fields.booktitle": "string",
+    "fields.month": "string",
+    "fields.pages": "string",
+    "fields.publisher": "string",
+    "fields.title": "string",
+    "fields.year": "string",
+    "key": "string",
+    "raw_bibtex": "string",
+    "slugified_keywords": "array<string>",
+    "title": "string",
+    "year": "string|null"
+  }
+```
 
 ### Global options
 

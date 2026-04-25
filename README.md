@@ -64,7 +64,10 @@ Single-output mode:
 
 - `--single`: Render one combined output file from the full selected entry list (available in the template as `entries`) instead of one file per entry.
 
-In `--single` mode, BibTera derives the output filename from the input and template names, so `--file-name-strategy` does not apply. Note that in this mode, the template should be designed to handle the `entries` variable, which is a list of all selected entries.
+In `--single` mode, BibTera derives the output filename from the input and template names, so `--file-name-strategy` does not apply.
+
+> [!IMPORTANT]
+> Note that in this single file output mode, the template should be designed to handle the `entries` variable, which is a list of all selected entries. Each entry in this list will have the same fields available as in the per-entry output mode, but the template must iterate over `entries` to access them. For example, you might use a loop like `{% for entry in entries %} ... {% endfor %}` in your Tera template to render each entry's information.
 
 ### `info`: inspect available template data
 
@@ -115,3 +118,4 @@ For instance, the output displaying the available fields for the BibTeX entry ty
 
 > [!TIP]
 > Start with `bibtera transform --help` or `bibtera info --help` to view command-specific details.
+> You can find some example BibTeX files and Tera templates in the `examples/` directory of this repository to get started.

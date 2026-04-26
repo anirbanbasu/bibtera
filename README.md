@@ -2,10 +2,10 @@
 
 [![CodeQL Advanced](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml) [![Markdown Lint](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml) [![Rust tests](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/anirbanbasu/bibtera/badge)](https://scorecard.dev/viewer/?uri=github.com/anirbanbasu/bibtera)
 
-Parse BibTeX entries and generate output in Markdown (amongst other formats) using Python's [Jinja](https://github.com/pallets/jinja)-like [Tera templates](https://github.com/Keats/tera). The generated Markdown files can be used by static site generators, such as [Zola](https://github.com/getzola/zola).
+BibTera parses BibTeX entries and generates outputs in text formats, such as Markdown amongst others, using [Jinja](https://github.com/pallets/jinja)-like [Tera](https://github.com/Keats/tera) templates. Static site generators, such as [Zola](https://github.com/getzola/zola), can use the generated Markdown files to render bibliography content.
 
 > [!CAUTION]
-> This project is in early development and may have breaking changes. Use with caution and report any issues you encounter.
+> BibTera is experimental and is being developed through AI-assisted coding. It may have bugs making it unsuitable for production use yet. Use it at your own risk and please report any issues you encounter.
 
 ## Installation
 
@@ -25,44 +25,44 @@ bibtera --help
 
 This will show you the available options and how to use them. The basic usage involves specifying the input BibTeX file, the output directory, and the template to use for generating the output.
 
-BibTera provides two subcommands:
+BibTera provides two subcommands as follows.
 
-- `transform`: Parse entries and generate output files from a Tera template.
-- `info`: Inspect what parsed fields are available for templating, without generating files.
+- `transform`: Parse bibliography entries from a BibTeX file and generate output files using a Tera template.
+- `info`: Display the available parsed or parsable bibliography fields are available for templating, without generating output files.
 
 ### `transform`: generate files from a template
 
-Use `transform` when you want BibTeX entries rendered into Markdown, HTML, JSON, or any other text format supported by your template file extension.
+Use `transform` to render BibTeX entries as Markdown, HTML, JSON, or any other text format.
 
 ```bash
 bibtera transform -i path/to/references.bib -o path/to/output -t path/to/template.md
 ```
 
-Required options:
+Required options are shown below.
 
 - `-i, --input`: Input BibTeX file.
 - `-o, --output`: Output directory.
 - `-t, --template`: Tera template file used for rendering.
 
-Common filtering options:
+Common filtering options are as follows.
 
 - `--include key1,key2,...`: Process only selected BibTeX entry keys.
 - `--exclude key1,key2,...`: Process all entries except selected BibTeX entry keys.
 
 You can use either `--include` or `--exclude`, but not both in the same command.
 
-Execution and safety options:
+Execution and safety options include the following.
 
-- `-n, --dry-run`: Preview which files would be generated, without writing files.
+- `-n, --dry-run`: Preview the files to be generated, without writing files.
 - `-f, --overwrite`: Overwrite existing files without confirmation prompts.
 - `-v, --verbose`: Show detailed per-entry logs. Without this flag, BibTera shows progress and a final summary.
 
-File naming options:
+There is the following file naming option.
 
 - `--file-name-strategy uuid7` (default): Stable, unique names derived from entry keys.
 - `--file-name-strategy slugify`: Human-readable names derived from entry keys.
 
-Single-output mode:
+Also, a single-output mode.
 
 - `--single`: Render one combined output file from the full selected entry list (available in the template as `entries`) instead of one file per entry.
 
@@ -79,18 +79,18 @@ Use `info` to understand what data fields you can reference in templates before 
 bibtera info --input path/to/references.bib
 ```
 
-Useful options:
+Useful options are as follows.
 
 - `-i, --input`: Optional input BibTeX file.
 - `--include key1,key2,...`: Show info only for selected BibTeX entry keys.
 - `--exclude key1,key2,...`: Hide selected BibTeX entry keys from the info output.
 
-Behavior of `info`:
+The output of `info` depends on whether an input file is provided and whether entries are selected through filters.
 
 - If entries are selected (through input and include/exclude filters), BibTera prints parsed key-value information for those entries.
 - If no entries are selected, BibTera prints a key-value overview of supported entry types and fields available to templates.
 
-For instance, the output displaying the available fields for the BibTeX entry type `@inproceedings`  looks like the following. Note that all `fields.*` are available for templating, but only a subset of them are guaranteed to be present for every entry of that type. Thus, `field.abstract` is not showed in the output below but it will be available if the BibTeX entry has the field specified.
+For instance, the output of `info` without an input BibTeX file displaying the available fields for the BibTeX entry type `@inproceedings`  looks like the following. Note that all `fields.*` are available for templating, but only a subset of them are guaranteed to be present for every entry of that type. Thus, `field.abstract` is not showed in the output below but it will be available if the BibTeX entry has the field specified.
 
 ```json
 "inproceedings": {
@@ -118,6 +118,12 @@ For instance, the output displaying the available fields for the BibTeX entry ty
 - `-h, --help`: Show help.
 - `-V, --version`: Show installed version.
 
+## Writing templates
+
 > [!TIP]
-> Start with `bibtera transform --help` or `bibtera info --help` to view command-specific details.
 > You can find some example BibTeX files and Tera templates in the `examples/` directory of this repository to get started.
+
+Following the [documentation of the Tera template engine](https://keats.github.io/tera/docs/), you can learn about the basic syntax for writing Tera templates. The template you write will depend on the specific type of output you want to generate. Thus, for instance, a template to generate vanilla Markdown will be different from a template to generate the Markdown for a theme for the [Zola static site generator](https://github.com/getzola/zola), which has its own syntax for front matter and content.
+
+> [!TIP]
+> What if the template syntax conflicts with the syntax of the output format you want to generate? For instance, this will happen if the output you want to generate also uses Tera or Tera-like syntax to be processed by something else down the pipeline, such as Zola. Use the `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw), to escape the Tera syntax in the template and have it appear verbatim in the output.

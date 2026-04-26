@@ -70,7 +70,7 @@ pub struct AuthorName {
     pub first: String,
     /// Family name
     pub last: String,
-    /// Normalized full name
+    /// Normalised full name
     pub full: String,
 }
 
@@ -79,7 +79,7 @@ impl BibTeXEntry {
     pub fn new(key: String, entry_type: String, authors: Vec<String>, title: String) -> Self {
         let author_parts = authors
             .iter()
-            .map(|a| Self::normalize_author(a))
+            .map(|a| Self::normalise_author(a))
             .collect::<Vec<_>>();
 
         Self {
@@ -124,8 +124,8 @@ impl BibTeXEntry {
         self.fields.get(field)
     }
 
-    fn normalize_author(author: &str) -> AuthorName {
-        BibTeXParser::normalize_author_name(author)
+    fn normalise_author(author: &str) -> AuthorName {
+        BibTeXParser::normalise_author_name(author)
     }
 }
 
@@ -290,9 +290,9 @@ impl BibTeXParser {
             if k != "author" && k != "title" && k != "year" {
                 let mut value = v.format_verbatim();
                 if k == "month" {
-                    value = Self::normalize_month_value(&value);
+                    value = Self::normalise_month_value(&value);
                 } else if k == "day" {
-                    value = Self::normalize_day_value(&value);
+                    value = Self::normalise_day_value(&value);
                 }
 
                 fields.insert(k, value);
@@ -327,7 +327,7 @@ impl BibTeXParser {
         raw
     }
 
-    fn normalize_month_value(value: &str) -> String {
+    fn normalise_month_value(value: &str) -> String {
         let trimmed = value.trim();
         if trimmed.is_empty() {
             return value.to_string();
@@ -341,9 +341,9 @@ impl BibTeXParser {
             return trimmed.to_string();
         }
 
-        let normalized = trimmed.trim_end_matches('.').to_ascii_lowercase();
+        let normalised = trimmed.trim_end_matches('.').to_ascii_lowercase();
 
-        match normalized.as_str() {
+        match normalised.as_str() {
             "january" | "jan" => "01".to_string(),
             "february" | "feb" => "02".to_string(),
             "march" | "mar" => "03".to_string(),
@@ -360,7 +360,7 @@ impl BibTeXParser {
         }
     }
 
-    fn normalize_day_value(value: &str) -> String {
+    fn normalise_day_value(value: &str) -> String {
         let trimmed = value.trim();
         if trimmed.is_empty() {
             return value.to_string();
@@ -411,14 +411,14 @@ impl BibTeXParser {
         for author in authors_text.split(" and ") {
             let author = author.trim();
             if !author.is_empty() {
-                result.push(Self::normalize_author_name(author));
+                result.push(Self::normalise_author_name(author));
             }
         }
 
         result
     }
 
-    fn normalize_author_name(author: &str) -> AuthorName {
+    fn normalise_author_name(author: &str) -> AuthorName {
         let trimmed = author.trim();
 
         if let Some((last, first)) = trimmed.split_once(',') {

@@ -27,7 +27,7 @@ fn test_parse_sample_bib() {
 }
 
 #[test]
-fn test_author_parsing_normalizes_last_first() {
+fn test_author_parsing_normalises_last_first() {
     let src = r#"
 @article{k1,
   author = {Doe, John and Jane Smith},
@@ -155,7 +155,7 @@ fn test_template_renders_raw_bibtex_field() {
 }
 
 #[test]
-fn test_template_renders_normalized_month_field() {
+fn test_template_renders_normalised_month_field() {
     let src = r#"
 @article{k1,
   author = {Doe, John},

@@ -20,7 +20,7 @@ pub fn safe_read<P: AsRef<Path>>(path: P) -> Result<String> {
     // Get canonical path to prevent path traversal.
     let canonical = path.canonicalize().context("Failed to resolve path")?;
 
-    // Resolve parent to force normalization and surface invalid paths.
+    // Resolve parent to force normalisation and surface invalid paths.
     if let Some(parent) = canonical.parent() {
         let parent_canonical = parent
             .canonicalize()

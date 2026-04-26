@@ -50,7 +50,7 @@ To set up a development environment for BibTera, you can follow these steps.
 By contributing to this project, you agree to the following:
 
 1. **License:** Your contributions will be licensed under the **MIT License**.
-2. **Media/Docs:** You grant the maintainers the right to re-license your documentation and media assets, but not the source code, under a more permissive licenses in the future.
+2. **Media/Docs:** You grant the maintainers the right to re-license your documentation and media assets, but not the source code, under a more permissive licences in the future.
 3. **Developer Certificate of Origin (DCO):** To ensure a clear chain of ownership, we strongly suggest all commits to be "signed-off."
 
 ### Developer Certificate of Origin (DCO)

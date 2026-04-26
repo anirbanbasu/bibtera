@@ -61,7 +61,7 @@ fn run_transform(config: TransformConfig) -> Result<()> {
     }
 
     let mut template_engine =
-        TemplateEngine::new().context("Failed to initialize template engine")?;
+        TemplateEngine::new().context("Failed to initialise template engine")?;
     template_engine
         .add_template(&config.template)
         .with_context(|| format!("Failed to load template: {}", config.template))?;

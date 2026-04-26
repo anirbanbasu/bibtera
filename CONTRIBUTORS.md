@@ -13,12 +13,12 @@ We appreciate your efforts to responsibly disclose your findings and will make e
 A security vulnerability is a weakness in the software that compromises data confidentiality, integrity, or availability. This may happen by due to coding errors, design flaws, or misconfigurations. Examples of security vulnerabilities include, but are not limited to:
 
 - **Remote code execution**: Allowing an attacker to run arbitrary code on the system.
-- **Elevated permissions or privilege escalation**: Gaining unauthorized access to higher privilege levels.
+- **Elevated permissions or privilege escalation**: Gaining unauthorised access to higher privilege levels.
 - **Unintended access to data or systems**: Accessing data or functionality that should be restricted.
 - **Denial of service attacks**: Making the system unavailable to legitimate users.
 - **Bypass of security controls**: Circumventing authentication, authorization, or other security mechanisms.
 
-What separates a security vulnerability from other unwanted behavior (a non-security bug) is a compromise in one or more of the areas above: confidentiality, integrity, or availability.
+What separates a security vulnerability from other unwanted behaviour (a non-security bug) is a compromise in one or more of the areas above: confidentiality, integrity, or availability.
 
 ### How to Report a Security Vulnerability
 

@@ -67,6 +67,7 @@ Execution and safety options include the following.
 
 - `-n, --dry-run`: Preview the files to be generated, without writing files.
 - `-f, --overwrite`: Overwrite existing files without confirmation prompts.
+- `--latex-substitution-map path/to/substitutions.json`: Load a custom LaTeX substitution map that extends and/or overrides built-in defaults used by the `latex_substitute` template helper.
 - `-v, --verbose`: Show detailed per-entry logs. Without this flag, BibTera shows progress and a final summary.
 
 There is the following file naming option.
@@ -79,6 +80,15 @@ Also, a single-output mode.
 - `--single`: Render one combined output file from the full selected entry list (available in the template as `entries`) instead of one file per entry.
 
 In `--single` mode, BibTera derives the output filename from the input and template names, so `--file-name-strategy` does not apply.
+
+When using `--latex-substitution-map`, the custom JSON map is merged on top of the built-in defaults shipped in `examples/substitution_map_default.json`. Each key must be a LaTeX token and each value must be the plaintext replacement.
+
+```json
+{
+  "\\textemdash": "--",
+  "\\ss": "ß"
+}
+```
 
 > [!IMPORTANT]
 > Note that in this single file output mode, the template should be designed to handle the `entries` variable, which is a list of all selected entries. Each entry in this list will have the same fields available as in the per-entry output mode, but the template must iterate over `entries` to access them. For example, you might use a loop like `{% for entry in entries %} ... {% endfor %}` in your Tera template to render each entry's information.
@@ -139,6 +149,26 @@ Following the [documentation of the Tera template engine](https://keats.github.i
 
 > [!TIP]
 > What if the template syntax conflicts with the syntax of the output format you want to generate? For instance, this will happen if the output you want to generate also uses Tera or Tera-like syntax to be processed by something else down the pipeline, such as Zola. Use the `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw), to escape the Tera syntax in the template and have it appear verbatim in the output.
+
+### LaTeX substitution helper
+
+BibTera registers a helper named `latex_substitute` in templates as both a function and a filter. It applies LaTeX-to-plaintext substitutions using the built-in map, optionally overridden via `--latex-substitution-map`.
+
+Function usage:
+
+```tera
+{{ latex_substitute(value=title) }}
+{{ latex_substitute(text=fields.note) }}
+```
+
+Filter usage:
+
+```tera
+{{ title | latex_substitute }}
+{{ fields.abstract | latex_substitute }}
+```
+
+Formatting commands such as `\\textbf{...}` and nested forms such as `\\textbf{bold \\emph{and italic} text}` are unwrapped to plain text before substitutions are applied.
 
 ## Contributing
 

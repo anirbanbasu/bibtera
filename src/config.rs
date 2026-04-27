@@ -97,6 +97,8 @@ pub struct TransformConfig {
     pub file_name_strategy: FileNameStrategy,
     /// Render all selected entries into one output file
     pub single: bool,
+    /// Optional path to a JSON file with LaTeX substitution overrides
+    pub latex_substitution_map: Option<String>,
     /// Verbose mode
     pub verbose: bool,
 }
@@ -113,6 +115,7 @@ impl TransformConfig {
             overwrite: args.overwrite,
             file_name_strategy: args.file_name_strategy.into(),
             single: args.single,
+            latex_substitution_map: args.latex_substitution_map,
             verbose: args.verbose,
         };
 
@@ -142,6 +145,16 @@ impl TransformConfig {
             return Err(ConfigError::Validation(format!(
                 "Template path does not exist: {}",
                 self.template
+            ))
+            .into());
+        }
+
+        if let Some(map_path) = &self.latex_substitution_map
+            && !Path::new(map_path).exists()
+        {
+            return Err(ConfigError::Validation(format!(
+                "LaTeX substitution map path does not exist: {}",
+                map_path
             ))
             .into());
         }

@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-04-27-001",
+    "version": "v2026-04-28-001",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -47,9 +47,21 @@
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source containing multiple entries for entries-collection scenarios."
         },
+        "inline_latex_substitution_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source with LaTeX snippets used to verify helper-based substitution behaviour."
+        },
+        "inline_custom_latex_substitution_map": {
+            "kind": "inline-data",
+            "purpose": "Custom LaTeX substitution map JSON used to verify override behaviour for built-in defaults."
+        },
         "template_single_entries": {
             "kind": "inline-data",
             "purpose": "Minimal template that iterates over the entries collection in single-output mode."
+        },
+        "template_latex_substitute": {
+            "kind": "inline-data",
+            "purpose": "Minimal template that calls latex_substitute for field-level LaTeX to plaintext conversion."
         },
         "invalid_template_comment_syntax": {
             "kind": "inline-data",

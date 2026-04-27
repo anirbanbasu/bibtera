@@ -76,6 +76,10 @@ pub struct TransformArgs {
     #[arg(long)]
     pub single: bool,
 
+    /// Path to a custom LaTeX substitution map JSON file used by Tera helper functions
+    #[arg(long)]
+    pub latex_substitution_map: Option<String>,
+
     /// Enable verbose transformation logs
     #[arg(short, long)]
     pub verbose: bool,

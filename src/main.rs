@@ -12,6 +12,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use bibtera::cli::{Cli, Commands};
 use bibtera::config::{InfoConfig, TransformConfig};
+use bibtera::latex;
 use bibtera::parser::BibTeXParser;
 use bibtera::template::TemplateEngine;
 use bibtera::utils;
@@ -60,8 +61,15 @@ fn run_transform(config: TransformConfig) -> Result<()> {
         eprintln!("Configuration: {:?}", config);
     }
 
-    let mut template_engine =
-        TemplateEngine::new().context("Failed to initialise template engine")?;
+    let custom_substitutions = config
+        .latex_substitution_map
+        .as_deref()
+        .map(|map_path| latex::load_substitution_map_file(std::path::Path::new(map_path)))
+        .transpose()
+        .context("Failed to load custom LaTeX substitution map")?;
+
+    let mut template_engine = TemplateEngine::new_with_substitutions(custom_substitutions)
+        .context("Failed to initialise template engine")?;
     template_engine
         .add_template(&config.template)
         .with_context(|| format!("Failed to load template: {}", config.template))?;

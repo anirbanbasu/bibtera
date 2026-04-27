@@ -370,6 +370,82 @@ fn e2e_transform_verbose_001_switches_logging_style() {
 }
 
 #[test]
+fn e2e_transform_latex_substitution_map_001_applies_custom_overrides() {
+    let fixture_dir = unique_test_dir("e2e_transform_latex_substitution_map_fixture");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let template_path = fixture_dir.join("template_latex_substitution.md");
+    fs::write(
+        &template_path,
+        "{{ latex_substitute(value=\"A \\textemdash B\") }}\n",
+    )
+    .expect("write latex substitute template");
+
+    let custom_map_path = fixture_dir.join("custom_substitution_map.json");
+    fs::write(&custom_map_path, "{\"\\\\textemdash\": \"--\"}\n")
+        .expect("write custom substitution map");
+
+    let default_output_dir = unique_test_dir("e2e_transform_latex_substitution_default");
+    let default_output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            default_output_dir.to_str().expect("default output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include",
+            "smith2020machine",
+        ],
+        None,
+    );
+
+    assert!(default_output.status.success());
+    let default_rendered = fs::read_to_string(default_output_dir.join("smith2020machine.md"))
+        .expect("read default substitution output");
+    assert!(default_rendered.contains("A — B"));
+
+    let custom_output_dir = unique_test_dir("e2e_transform_latex_substitution_custom");
+    let custom_output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            custom_output_dir.to_str().expect("custom output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include",
+            "smith2020machine",
+            "--latex-substitution-map",
+            custom_map_path.to_str().expect("custom map path"),
+        ],
+        None,
+    );
+
+    assert!(custom_output.status.success());
+    let custom_rendered = fs::read_to_string(custom_output_dir.join("smith2020machine.md"))
+        .expect("read custom substitution output");
+    assert!(custom_rendered.contains("A -- B"));
+    assert!(!custom_rendered.contains("A — B"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&default_output_dir);
+    let _ = fs::remove_dir_all(&custom_output_dir);
+}
+
+#[test]
 fn e2e_transform_errors_001_reports_invalid_input_and_template_failures() {
     let malformed_dir = unique_test_dir("e2e_transform_errors");
     fs::create_dir_all(&malformed_dir).expect("create malformed dir");

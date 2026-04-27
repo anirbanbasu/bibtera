@@ -1,6 +1,6 @@
 # BibTera: a BibTeX translator using the Tera templating engine
 
-[![CodeQL Advanced](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml) [![Markdown Lint](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml) [![Rust tests](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/anirbanbasu/bibtera/badge)](https://scorecard.dev/viewer/?uri=github.com/anirbanbasu/bibtera)
+[![CodeQL Advanced](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/codeql.yml) [![Markdown Lint](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/md-lint.yml) [![Rust tests](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml/badge.svg)](https://github.com/anirbanbasu/bibtera/actions/workflows/rust.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/anirbanbasu/bibtera/badge)](https://scorecard.dev/viewer/?uri=github.com/anirbanbasu/bibtera) ![crates.io](https://img.shields.io/crates/v/bibtera.svg)
 
 BibTera parses BibTeX entries and generates outputs in text formats, such as Markdown amongst others, using [Jinja](https://github.com/pallets/jinja)-like [Tera](https://github.com/Keats/tera) templates. Static site generators, such as [Zola](https://github.com/getzola/zola), can use the generated Markdown files to render bibliography content.
 
@@ -13,6 +13,18 @@ The current preferred way is to download and compile the source from the HEAD of
 
 ```bash
 cargo install --git https://github.com/anirbanbasu/bibtera
+```
+
+You can also install the latest released version from [crates.io](https://crates.io/crates/bibtera) using the following command.
+
+```bash
+cargo install bibtera
+```
+
+Alternatively, you can install BibTera using [Homebrew](https://brew.sh/) on macOS or Linux with the following command.
+
+```bash
+brew install anirbanbasu/tap/bibtera
 ```
 
 ## Usage

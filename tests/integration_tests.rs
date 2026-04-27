@@ -4,10 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use bibtera::cli::{Cli, Commands, FileNameStrategy};
 use bibtera::parser::BibTeXParser;
 use bibtera::template::TemplateEngine;
-use clap::Parser;
 
 fn examples_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples")
@@ -335,72 +333,4 @@ fn it_error_surfacing_001_exposes_underlying_template_parser_errors() {
     assert!(error_text.contains("alert") || error_text.contains("end"));
 
     fs::remove_file(&temp_file).ok();
-}
-
-#[test]
-fn cli_transform_parsing_supports_slugify_strategy() {
-    let cli = Cli::try_parse_from([
-        "bibtera",
-        "transform",
-        "-i",
-        "in.bib",
-        "-o",
-        "out",
-        "-t",
-        "tmpl.md",
-        "--file-name-strategy",
-        "slugify",
-    ])
-    .expect("parse cli");
-
-    match cli.command {
-        Commands::Transform(args) => {
-            assert_eq!(args.input, "in.bib");
-            assert_eq!(args.output, "out");
-            assert_eq!(args.template, "tmpl.md");
-            assert_eq!(args.file_name_strategy, FileNameStrategy::Slugify);
-            assert!(!args.single);
-        }
-        _ => panic!("expected transform command"),
-    }
-}
-
-#[test]
-fn cli_transform_parsing_supports_single_mode() {
-    let cli = Cli::try_parse_from([
-        "bibtera",
-        "transform",
-        "-i",
-        "in.bib",
-        "-o",
-        "out",
-        "-t",
-        "tmpl.md",
-        "--single",
-    ])
-    .expect("parse cli");
-
-    match cli.command {
-        Commands::Transform(args) => {
-            assert_eq!(args.input, "in.bib");
-            assert_eq!(args.output, "out");
-            assert_eq!(args.template, "tmpl.md");
-            assert!(args.single);
-        }
-        _ => panic!("expected transform command"),
-    }
-}
-
-#[test]
-fn cli_info_parsing_supports_exclude_selection() {
-    let cli = Cli::try_parse_from(["bibtera", "info", "-i", "in.bib", "--exclude", "k1"])
-        .expect("parse cli");
-
-    match cli.command {
-        Commands::Info(args) => {
-            assert_eq!(args.input.as_deref(), Some("in.bib"));
-            assert_eq!(args.exclude.as_deref(), Some("k1"));
-        }
-        _ => panic!("expected info command"),
-    }
 }

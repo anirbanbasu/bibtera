@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 - None documented yet.
 
-## [0.1.0] - 2026-??-??
+## [0.1.0] - 2026-04-27
 
 ### Added
 

@@ -5,7 +5,7 @@
 BibTera parses BibTeX entries and generates outputs in text formats, such as Markdown amongst others, using [Jinja](https://github.com/pallets/jinja)-like [Tera](https://github.com/Keats/tera) templates. Static site generators, such as [Zola](https://github.com/getzola/zola), can use the generated Markdown files to render bibliography content.
 
 > [!CAUTION]
-> BibTera is experimental and is being developed through AI-assisted coding. It may have bugs making it unsuitable for production use yet. Use it at your own risk and please report any issues you encounter.
+> BibTera is still in an early stage of development. It may have bugs making it unsuitable for production use yet. Use it at your own risk and please report any issues you encounter.
 
 ## Installation
 

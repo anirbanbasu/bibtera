@@ -2,7 +2,7 @@
 
 The following specify the functional, non-functional and other requirements for the project.
 
-**Requirements specification version**: _v2026-04-27-001-draft_.
+**Requirements specification version**: _v2026-04-27-001_.
 
 ## Functional requirements
 
@@ -18,7 +18,7 @@ The following functional requirements are being improved iteratively as the proj
     1. The file name of the generated file should be derived from the BibTeX entry's key. The file name must not contain any characters that are not allowed in file names (e.g., slashes, colons, etc.) and should ensure that the resulting file name is unique within the output directory to prevent overwriting existing files.
         1. Use a UUID7 representation with its 16-byte input from a SHAKE-128 hash of the BibTeX entry's key to generate a unique file name.
         2. Alternatively, slugify the BibTeX entry's key by replacing non-alphanumeric characters with underscores. The choice between these two approaches can be made configurable through a command-line option (i.e., `--file-name-strategy`, see CLI options).
-    2. There is a special case where a template specification may contain Tera or Jinja-like syntax that will be parsed by a down stream template parser, such as the Zola static site generator. In this case, the application should not attempt to parse the template specification as a Tera template and instead should treat it as a literal string to be included in the output file. Tera already supports this using `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw). This applies to both one-line and multi-line ignored sections.
+    2. There is a special case where a template specification may contain Tera or Jinja-like syntax that will be parsed by a downstream template parser, such as the Zola static site generator. In this case, the application should not attempt to parse the template specification as a Tera template and instead should treat it as a literal string to be included in the output file. Tera already supports this using `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw). This applies to both one-line and multi-line ignored sections.
     3. The application must be able to output a special field called `raw_bibtex` that contains the raw BibTeX entry as a string, which can be used in the Tera templates for rendering the original BibTeX entry if needed.
     4. Usually, each BibTeX entry in the input file is expected to be transformed by a Tera template to a single output file in the output directory. However, in some cases, the Tera template may be designed such that it operates on the list of all parsed BibTeX entries rather than on individual entries. In this case, the application should generate a single output file that contains the rendered output for all the BibTeX entries in the input file, using the provided Tera template. This mode of operation can be specified by a command-line option, see below.
     5. The application should exit immediately with an appropriate error message if the transformation process fails for any reason, such as missing template files, file I/O errors, or issues with rendering the templates.
@@ -74,32 +74,19 @@ This section describes test requirements and localisation requirements.
 
 ### Test requirements
 
-The application should have the following testing setup, which is currently descriptive. In the future, the test specifications may refer to exact test data. When external files are needed for the tests, sample input files and templates present in the `examples` directory should be used. The input files in that directory are prefixed with `input_` and the template files are prefixed with `template_` to distinguish them.
+The application must have comprehensive test coverage across unit, integration and end-to-end levels. This document specifies the overall testing objectives only. Detailed integration and end-to-end scenario specifications, together with shared fixture definitions, must be maintained separately in machine-readable files so that they can be reviewed, validated and evolved independently from this requirements document.
 
-1. Unit tests: The application should have comprehensive unit tests for all public functions and methods. These tests should cover all edge cases and error scenarios to ensure maximum coverage. These tests should be present in the `src` directory alongside the code they are testing, following Rust's convention for unit tests. Each test should be designed to test a specific function or method in isolation, using mock data and dependencies as needed to ensure that the tests are focused and reliable.
-2. Integration tests: The application should have the following integration tests. These tests should be present as `integration_tests.rs` in the `tests` directory.
-    1. Test that verify the parsing of sample BibTeX data.
-    2. Tests to verify the normalisation of author names into a consistent representation including the structured given and family name parts.
-    3. Tests to verify the normalisation of month and day fields into a consistent numeric representation with zero-prefixing for values less than 10.
-    4. Tests to verify the parsing of keywords into a slugified array of strings.
-    5. Tests to verify that the raw BibTeX entry is correctly exposed as a string for rendering in the Tera templates through the `raw_bibtex` field.
-    6. Tests to verify the utilisation of sample Tera templates to generate the expected output files from sample BibTeX data.
-    7. Tests to verify that the application exits immediately with appropriate error messages when input BibTeX or template files are invalid or missing.
-3. End-to-end tests: The application should have the following end-to-end tests. The tests should be present as `end_to_end_tests.rs` in the `tests` directory.
-    1. Tests that simulate a user running the CLI with various options for the `transform` sub-command and check the generated output files for correctness. These tests should contain the following scenarios.
-        1. Running `transform` with a sample BibTeX file and a Tera template to check if the generated output files match the expected output.
-        2. Running `transform` with the `--dry-run` option to check if the intended output file names and their corresponding BibTeX entry keys are printed to the console without generating any files.
-        3. Running `transform` with the `--overwrite` option to check if existing files in the output directory are overwritten without prompting and if the warning message is printed for each skipped file when the option is not used.
-        4. Running `transform` with the `--file-name-strategy` option to check if the output file names are generated according to the specified strategy (i.e., `uuid7` or `slugify`).
-        5. Running `transform` with the `--single` option to check if a single output file is generated that contains the rendered output for all the BibTeX entries in the input file, and if the output file name is derived from the input BibTeX file name and the template file name as expected.
-        6. Running `transform` with the `--verbose` option to check if detailed information about each entry is logged during the transformation process and if a summary of the transformation process is output at the end.
-        7. Running `transform` with invalid input (e.g., malformed BibTeX file, missing template file, etc.) to check if the application exits immediately with an appropriate error message.
-        8. Running `transform` with a real world input BibTeX file `examples/input_iclr2025_1k.bib` and the Tera template `examples/template_entry_single.json` to check if the generated output file is correct for a large dataset.
-    2. Tests that simulate a user running the CLI with various options for the `info` sub-command and checks the output for correctness. These tests should contain the following scenarios.
-        1. Running `info` without an input BibTeX file to check the output of available fields for all supported entry types.
-        2. Running `info` with an input BibTeX file but without selecting any entries to check the output of available fields for the entry types present in the input file.
-        3. Running `info` with an input BibTeX file and selecting some entries to check the output of parsed key-value information for those entries.
-        4. Running `info` with a real world input BibTeX file `examples/input_iclr2025_1k.bib` to check the output of a random subset of parsed key-value information for all entries in that file.
+1. Unit tests: The application must have comprehensive unit tests for public functions, public methods and important internal helpers where isolated verification materially improves confidence. These tests must be present in the `src` directory alongside the code they exercise, following Rust conventions. Unit test requirements remain objective-based in this document; this specification does not need to prescribe exact test function names or enumerate every unit-level case.
+2. Integration tests: Cross-module behaviour must be implemented in `tests/integration_tests.rs` and validated against the scenario catalogue in `tests/specifications/integration-tests.json`. Each integration scenario specification must define at least a stable identifier, objective, related requirements references, fixture references and expected outcomes.
+3. End-to-end tests: User-visible CLI workflows must be implemented in `tests/end_to_end_tests.rs` and validated against the scenario catalogue in `tests/specifications/end-to-end-tests.json`. Each end-to-end scenario specification must define at least a stable identifier, objective, related requirements references, command or workflow description, fixture references and expected observable outcomes.
+4. Test data: Shared test fixtures and expected data must be defined in `tests/test-data/fixtures.json`. When external files are required, the specifications should preferentially reference the sample input and template files in the `examples` directory.
+5. Traceability and validation: Each integration and end-to-end scenario specification must reference the related requirement clauses from this document. The machine-readable specification files must use a stable structure suitable for automated validation in tooling or continuous integration.
+
+The initial machine-readable test specification files are:
+
+1. `tests/specifications/integration-tests.json`
+2. `tests/specifications/end-to-end-tests.json`
+3. `tests/test-data/fixtures.json`
 
 ### Localisation requirements
 

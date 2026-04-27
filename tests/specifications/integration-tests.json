@@ -1,0 +1,138 @@
+{
+    "$schema": "./schemas/scenario-catalogue.schema.json",
+    "version": "v2026-04-27-001",
+    "scope": "integration",
+    "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
+    "required_fields": [
+        "id",
+        "objective",
+        "requirements",
+        "fixtures",
+        "expected_outcomes"
+    ],
+    "scenarios": [
+        {
+            "id": "IT-PARSE-SAMPLE-001",
+            "objective": "Verify that valid sample BibTeX input is parsed into expected entry metadata.",
+            "requirements": [
+                "1",
+                "1.5"
+            ],
+            "fixtures": [
+                "input_sample_bib"
+            ],
+            "expected_outcomes": [
+                "Parsing succeeds without errors.",
+                "At least one entry is returned.",
+                "Representative entry keys and entry types match fixture expectations."
+            ]
+        },
+        {
+            "id": "IT-AUTHOR-NORMALISATION-001",
+            "objective": "Verify that author names in both supported formats are normalised and exposed as structured parts.",
+            "requirements": [
+                "1.1"
+            ],
+            "fixtures": [
+                "inline_author_formats"
+            ],
+            "expected_outcomes": [
+                "Normalised author display values use a consistent representation.",
+                "Structured given-name and family-name parts are available for template rendering."
+            ]
+        },
+        {
+            "id": "IT-NONSTANDARD-FIELDS-001",
+            "objective": "Verify that non-standard BibTeX fields are preserved and exposed to templates.",
+            "requirements": [
+                "1.2",
+                "2"
+            ],
+            "fixtures": [
+                "inline_non_standard_fields",
+                "template_entry_md"
+            ],
+            "expected_outcomes": [
+                "Non-standard fields remain available through the template context.",
+                "Rendered output includes representative non-standard values."
+            ]
+        },
+        {
+            "id": "IT-DATE-NORMALISATION-001",
+            "objective": "Verify that month and day values are normalised to zero-prefixed numeric strings.",
+            "requirements": [
+                "1.3"
+            ],
+            "fixtures": [
+                "inline_month_and_day_formats"
+            ],
+            "expected_outcomes": [
+                "Named and numeric month values are converted to a consistent numeric representation.",
+                "Single-digit month and day values are zero-prefixed."
+            ]
+        },
+        {
+            "id": "IT-SLUGIFIED-KEYWORDS-001",
+            "objective": "Verify that keywords are exposed as a slugified string array for template consumption.",
+            "requirements": [
+                "1.4"
+            ],
+            "fixtures": [
+                "inline_keywords_mixed_punctuation"
+            ],
+            "expected_outcomes": [
+                "The slugified keywords field is available as an array.",
+                "Non-alphanumeric characters are replaced with hyphens in each slugified keyword."
+            ]
+        },
+        {
+            "id": "IT-RAW-BIBTEX-001",
+            "objective": "Verify that the original BibTeX entry is exposed through the raw_bibtex field.",
+            "requirements": [
+                "2.3"
+            ],
+            "fixtures": [
+                "inline_raw_bibtex_entry"
+            ],
+            "expected_outcomes": [
+                "The raw_bibtex field is present in the template context.",
+                "Rendered output preserves representative original BibTeX content."
+            ]
+        },
+        {
+            "id": "IT-SINGLE-MODE-CONTEXT-001",
+            "objective": "Verify that single-output rendering exposes the entries collection and supports deterministic output naming inputs.",
+            "requirements": [
+                "2.4",
+                "3.1.9"
+            ],
+            "fixtures": [
+                "inline_multiple_entries",
+                "template_single_entries"
+            ],
+            "expected_outcomes": [
+                "The template context exposes the entries collection.",
+                "Rendered output can iterate across all selected entries.",
+                "Inputs needed for combined single-mode file naming are available and testable."
+            ]
+        },
+        {
+            "id": "IT-ERROR-SURFACING-001",
+            "objective": "Verify that invalid template or input conditions surface actionable errors rather than being silently ignored.",
+            "requirements": [
+                "1.5",
+                "2.5",
+                "4"
+            ],
+            "fixtures": [
+                "invalid_template_comment_syntax",
+                "missing_input_path",
+                "missing_template_path"
+            ],
+            "expected_outcomes": [
+                "Invalid template syntax produces an error that exposes the underlying rendering or parsing issue.",
+                "Missing or invalid input artefacts fail immediately with an informative error message."
+            ]
+        }
+    ]
+}

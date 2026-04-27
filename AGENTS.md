@@ -44,20 +44,32 @@ osv-scanner scan source -r .
 
 ## Project structure overview
 
-The project is structured into the following modules within the `src` directory:
+The core code is structured into the following modules within the `src` directory:
 
 - `main.rs`: The entry point of the application, responsible for parsing command-line arguments and orchestrating the overall flow.
 - `parser.rs`: Contains the logic for parsing BibTeX entries using the BibLatex library.
 - `template.rs`: Contains the logic for rendering Tera templates with the parsed BibTeX entries.
 - `utils.rs`: Contains utility functions that are used across the project.
 - `cli.rs`: Contains the command-line interface definitions using Clap.
-- `config.rs`: Contains the configuration management logic, if needed in the future.
-- `lib.rs`: Contains the core library code, if the project is structured as a library and binary.
+- `config.rs`: Contains runtime configuration validation and filter handling for CLI arguments.
+- `lib.rs`: Exposes the library modules used by the binary and tests.
 
 Outside the `src` directory, we have:
 
-- `examples/`: A directory to store example of inputs, templates and outputs.
-- `tests/`: A directory to store integration tests, if needed in the future.
+- `examples/`: A directory to store examples of inputs, templates and outputs.
+- `tests/`: Integration and end-to-end test suites.
+  - `integration_tests.rs`: Cross-module integration tests aligned with integration scenario IDs.
+  - `end_to_end_tests.rs`: CLI end-to-end tests aligned with end-to-end scenario IDs.
+  - `specifications/`: Machine-readable test scenario catalogues.
+    - `integration-tests.json`: Integration scenario catalogue.
+    - `end-to-end-tests.json`: End-to-end scenario catalogue.
+    - `schemas/`: JSON Schema files for validating specification structures.
+      - `scenario-catalogue.schema.json`: Schema for integration and end-to-end scenario files.
+      - `fixture-catalogue.schema.json`: Schema for fixture catalogue files.
+    - `test-data/`: Shared machine-readable test fixture definitions.
+      - `fixtures.json`: Fixture catalogue referenced by integration and end-to-end specifications.
+- `.github/workflows/`: CI workflows for Rust checks, security scanning, dependency review and publishing.
+- `REQUIREMENTS.md`: Formal functional, non-functional, interface and test requirements.
 
 ## Platform support
 
@@ -66,4 +78,8 @@ Outside the `src` directory, we have:
 
 ## Requirements specification
 
-Requirements are specified in REQUIREMENTS.md.
+Requirements are specified in `REQUIREMENTS.md`.
+
+## Language of documentation
+
+All function, method, variable names, comments, documentation, and user-facing messages must be written in British English (en-GB).

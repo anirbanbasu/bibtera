@@ -286,12 +286,14 @@ fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
 fn run_info(config: InfoConfig) -> Result<()> {
     if let Some(input) = &config.input {
         let entries = BibTeXParser::parse_file(input).context("Failed to parse BibTeX file")?;
+        let has_explicit_selection =
+            !config.filter.include.is_empty() || !config.filter.exclude.is_empty();
         let selected = entries
             .iter()
             .filter(|entry| config.filter.should_include_entry(&entry.key))
             .collect::<Vec<_>>();
 
-        if !selected.is_empty() {
+        if has_explicit_selection && !selected.is_empty() {
             let mut by_key = BTreeMap::new();
             for entry in selected {
                 by_key.insert(&entry.key, entry);
@@ -300,6 +302,12 @@ fn run_info(config: InfoConfig) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&by_key)?);
             return Ok(());
         }
+
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&entry_type_field_map(&entries))?
+        );
+        return Ok(());
     }
 
     println!(
@@ -364,6 +372,27 @@ fn default_entry_type_field_map() -> BTreeMap<String, BTreeMap<String, String>> 
     map
 }
 
+fn entry_type_field_map(
+    entries: &[bibtera::parser::BibTeXEntry],
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    let mut fields_by_type = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for entry in entries {
+        let fields = fields_by_type.entry(entry.entry_type.clone()).or_default();
+        for field_name in entry.fields.keys() {
+            fields.insert(field_name.clone());
+        }
+    }
+
+    let mut map = BTreeMap::new();
+    for (entry_type, fields) in fields_by_type {
+        let field_refs = fields.iter().map(String::as_str).collect::<Vec<_>>();
+        map.insert(entry_type, template_available_fields_for_type(&field_refs));
+    }
+
+    map
+}
+
 fn template_available_fields_for_type(fields: &[&str]) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
 
@@ -410,6 +439,45 @@ mod tests {
             map.get("article")
                 .expect("article map")
                 .contains_key("author_parts")
+        );
+    }
+
+    #[test]
+    fn test_entry_type_field_map_uses_present_types_and_fields() {
+        let entries = vec![
+            bibtera::parser::BibTeXEntry::new(
+                "smith2020machine".to_string(),
+                "article".to_string(),
+                vec!["John Smith".to_string()],
+                "Machine Learning".to_string(),
+            )
+            .with_field("journal".to_string(), "Journal of AI".to_string()),
+            bibtera::parser::BibTeXEntry::new(
+                "alice2022blog".to_string(),
+                "misc".to_string(),
+                vec!["Alice Johnson".to_string()],
+                "Introduction to Rust".to_string(),
+            )
+            .with_field(
+                "howpublished".to_string(),
+                "https://example.com".to_string(),
+            ),
+        ];
+
+        let map = entry_type_field_map(&entries);
+
+        assert!(map.contains_key("article"));
+        assert!(map.contains_key("misc"));
+        assert!(!map.contains_key("book"));
+        assert!(
+            map.get("article")
+                .expect("article map")
+                .contains_key("fields.journal")
+        );
+        assert!(
+            map.get("misc")
+                .expect("misc map")
+                .contains_key("fields.howpublished")
         );
     }
 

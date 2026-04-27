@@ -1,0 +1,91 @@
+{
+    "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
+    "version": "v2026-04-27-001",
+    "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
+    "fixtures": {
+        "input_sample_bib": {
+            "kind": "file",
+            "path": "examples/input_sample.bib",
+            "purpose": "Canonical sample BibTeX input for functional test scenarios."
+        },
+        "input_iclr2025_1k_bib": {
+            "kind": "file",
+            "path": "examples/input_iclr2025_1k.bib",
+            "purpose": "Large real-world BibTeX input for representative high-volume scenarios."
+        },
+        "template_entry_md": {
+            "kind": "file",
+            "path": "examples/template_entry.md",
+            "purpose": "Markdown output template for per-entry rendering scenarios."
+        },
+        "template_entry_single_json": {
+            "kind": "file",
+            "path": "examples/template_entry_single.json",
+            "purpose": "Single-output template for rendering all selected entries into one file."
+        },
+        "inline_author_formats": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source that mixes Last, First and First Last author formats."
+        },
+        "inline_non_standard_fields": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source that includes non-standard fields such as abstract and keywords."
+        },
+        "inline_month_and_day_formats": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source covering named months, numeric months and single-digit day values."
+        },
+        "inline_keywords_mixed_punctuation": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source with keywords containing spaces and punctuation that must be slugified."
+        },
+        "inline_raw_bibtex_entry": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source used to verify raw_bibtex exposure in templates."
+        },
+        "inline_multiple_entries": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source containing multiple entries for entries-collection scenarios."
+        },
+        "template_single_entries": {
+            "kind": "inline-data",
+            "purpose": "Minimal template that iterates over the entries collection in single-output mode."
+        },
+        "invalid_template_comment_syntax": {
+            "kind": "inline-data",
+            "purpose": "Template content that should fail Tera parsing and expose the underlying error."
+        },
+        "malformed_bibtex_input": {
+            "kind": "inline-data",
+            "purpose": "Invalid BibTeX content used to verify immediate parse failure paths."
+        },
+        "missing_input_path": {
+            "kind": "virtual-fixture",
+            "purpose": "Reference to a non-existent input path used for file-not-found error scenarios."
+        },
+        "missing_template_path": {
+            "kind": "virtual-fixture",
+            "purpose": "Reference to a non-existent template path used for file-not-found error scenarios."
+        },
+        "preexisting_output_file": {
+            "kind": "generated-state",
+            "purpose": "Pre-created output artefact used to verify overwrite and skip behaviour."
+        },
+        "expected_file_names": {
+            "kind": "derived-expectation",
+            "purpose": "Expected file names for supported naming strategies for the selected input fixture set."
+        },
+        "expected_single_mode_name": {
+            "kind": "derived-expectation",
+            "purpose": "Expected single-output file name derived from the input and template file stems."
+        },
+        "selected_entry_keys": {
+            "kind": "derived-expectation",
+            "purpose": "Representative include and exclude key selections used for info command scenarios."
+        },
+        "representative_random_subset_rule": {
+            "kind": "selection-rule",
+            "purpose": "Documented rule for choosing a repeatable representative subset when exhaustive output checking is unnecessary."
+        }
+    }
+}

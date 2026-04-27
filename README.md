@@ -139,3 +139,11 @@ Following the [documentation of the Tera template engine](https://keats.github.i
 
 > [!TIP]
 > What if the template syntax conflicts with the syntax of the output format you want to generate? For instance, this will happen if the output you want to generate also uses Tera or Tera-like syntax to be processed by something else down the pipeline, such as Zola. Use the `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw), to escape the Tera syntax in the template and have it appear verbatim in the output.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+
+## Licence
+
+This project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/). See [LICENSE](LICENSE) for the full licence text.

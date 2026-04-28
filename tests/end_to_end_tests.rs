@@ -446,6 +446,118 @@ fn e2e_transform_latex_substitution_map_001_applies_custom_overrides() {
 }
 
 #[test]
+fn e2e_transform_latex_substitution_math_mode_002_preserves_math_regions() {
+    let fixture_dir = unique_test_dir("e2e_transform_latex_substitution_math_mode_fixture");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let input_path = fixture_dir.join("input_math_mode.bib");
+    fs::write(
+        &input_path,
+        concat!(
+            "@article{mathmode2026,\n",
+            "  title = {outside TOKEN; $inline TOKEN$; $$display TOKEN$$; \\(paren TOKEN\\); \\[bracket TOKEN\\]},\n",
+            "  author = {Doe, John},\n",
+            "  year = {2026}\n",
+            "}\n"
+        ),
+    )
+    .expect("write math-mode input bib");
+
+    let template_path = fixture_dir.join("template_latex_math_mode.md");
+    fs::write(&template_path, "{{ latex_substitute(value=title) }}\n")
+        .expect("write latex substitute template");
+
+    let custom_map_path = fixture_dir.join("custom_substitution_map.json");
+    fs::write(&custom_map_path, "{\"TOKEN\": \"CHANGED\"}\n")
+        .expect("write custom substitution map");
+
+    let output_dir = unique_test_dir("e2e_transform_latex_substitution_math_mode");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input_path.to_str().expect("input path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include",
+            "mathmode2026",
+            "--latex-substitution-map",
+            custom_map_path.to_str().expect("custom map path"),
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+    let rendered =
+        fs::read_to_string(output_dir.join("mathmode2026.md")).expect("read rendered output");
+    assert!(rendered.contains("outside CHANGED;"));
+    assert!(rendered.contains("$inline TOKEN$;"));
+    assert!(rendered.contains("$$display TOKEN$$;"));
+    assert!(rendered.contains("\\(paren TOKEN\\);"));
+    assert!(rendered.contains("\\[bracket TOKEN\\]"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
+fn e2e_transform_latex_substitution_math_mode_003_preserves_real_default_tokens_in_math_regions() {
+    let fixture_dir = unique_test_dir("e2e_transform_latex_substitution_math_mode_real_tokens");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let input_path = fixture_dir.join("input_math_mode_real_tokens.bib");
+    fs::write(
+        &input_path,
+        concat!(
+            "@article{realtokens2026,\n",
+            "  title = {outside \\textemdash \\textasciitilde \\textasciicircum; $inline \\textemdash \\textasciitilde \\textasciicircum$; $$display \\textemdash \\textasciitilde \\textasciicircum$$; \\(paren \\textemdash \\textasciitilde \\textasciicircum\\); \\[bracket \\textemdash \\textasciitilde \\textasciicircum\\]},\n",
+            "  author = {Doe, John},\n",
+            "  year = {2026}\n",
+            "}\n"
+        ),
+    )
+    .expect("write math-mode input bib");
+
+    let template_path = fixture_dir.join("template_latex_math_mode_real_tokens.md");
+    fs::write(&template_path, "{{ latex_substitute(value=title) }}\n")
+        .expect("write latex substitute template");
+
+    let output_dir = unique_test_dir("e2e_transform_latex_substitution_math_mode_real_tokens");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input_path.to_str().expect("input path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include",
+            "realtokens2026",
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+    let rendered =
+        fs::read_to_string(output_dir.join("realtokens2026.md")).expect("read rendered output");
+    assert!(rendered.contains("outside —~^;"));
+    assert!(rendered.contains("$inline \\textemdash \\textasciitilde \\textasciicircum$;"));
+    assert!(rendered.contains("$$display \\textemdash \\textasciitilde \\textasciicircum$$;"));
+    assert!(rendered.contains("\\(paren \\textemdash \\textasciitilde \\textasciicircum\\);"));
+    assert!(rendered.contains("\\[bracket \\textemdash \\textasciitilde \\textasciicircum\\]"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
 fn e2e_transform_errors_001_reports_invalid_input_and_template_failures() {
     let malformed_dir = unique_test_dir("e2e_transform_errors");
     fs::create_dir_all(&malformed_dir).expect("create malformed dir");

@@ -12,6 +12,8 @@ use biblatex::{Bibliography, ChunksExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+const MATH_BACKSLASH_PLACEHOLDER: &str = "__BIBTERA_MATH_BS_8C6EBAAF__";
+
 /// Error types for BibTeX parsing operations
 #[derive(Error, Debug)]
 pub enum ParseError {
@@ -146,9 +148,11 @@ impl BibTeXParser {
 
     /// Parse BibTeX entries from a source string
     pub fn parse_str(src: &str) -> Result<Vec<BibTeXEntry>> {
+        let protected_source = Self::protect_math_mode_backslashes(src);
+
         // Parse using BibLatex
         let bibliography =
-            Bibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
+            Bibliography::parse(&protected_source).map_err(|e| ParseError::Parse(e.to_string()))?;
 
         if bibliography.is_empty() {
             return Err(ParseError::NoEntries("input".to_string()).into());
@@ -270,16 +274,22 @@ impl BibTeXParser {
         // Extract title
         let title = all_fields
             .get("title")
-            .map(|t| t.format_verbatim())
+            .map(|t| Self::restore_math_mode_backslashes(&t.format_verbatim()))
             .unwrap_or_default();
 
         // Extract year
-        let year = all_fields.get("year").map(|y| y.format_verbatim());
+        let year = all_fields
+            .get("year")
+            .map(|y| Self::restore_math_mode_backslashes(&y.format_verbatim()));
 
         // Extract keywords as slugified list
         let slugified_keywords = all_fields
             .get("keywords")
-            .map(|keywords| Self::parse_slugified_keywords(&keywords.format_verbatim()))
+            .map(|keywords| {
+                Self::parse_slugified_keywords(&Self::restore_math_mode_backslashes(
+                    &keywords.format_verbatim(),
+                ))
+            })
             .unwrap_or_default();
 
         let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields);
@@ -288,7 +298,7 @@ impl BibTeXParser {
         let mut fields = HashMap::new();
         for (k, v) in all_fields {
             if k != "author" && k != "title" && k != "year" {
-                let mut value = v.format_verbatim();
+                let mut value = Self::restore_math_mode_backslashes(&v.format_verbatim());
                 if k == "month" {
                     value = Self::normalise_month_value(&value);
                 } else if k == "day" {
@@ -320,7 +330,11 @@ impl BibTeXParser {
         let mut raw = format!("@{}{{{},\n", entry_type, key);
 
         for (field, value) in fields {
-            raw.push_str(&format!("  {} = {{{}}},\n", field, value.format_verbatim()));
+            raw.push_str(&format!(
+                "  {} = {{{}}},\n",
+                field,
+                Self::restore_math_mode_backslashes(&value.format_verbatim())
+            ));
         }
 
         raw.push('}');
@@ -373,6 +387,92 @@ impl BibTeXParser {
         }
 
         trimmed.to_string()
+    }
+
+    fn protect_math_mode_backslashes(input: &str) -> String {
+        let chars = input.chars().collect::<Vec<_>>();
+        let mut index = 0;
+        let mut output = String::new();
+
+        while index < chars.len() {
+            if let Some((open_len, close_token)) = Self::math_delimiter_at(&chars, index)
+                && let Some(close_index) =
+                    Self::find_unescaped_token(&chars, index + open_len, &close_token)
+            {
+                output.extend(chars[index..index + open_len].iter());
+
+                let inner = chars[index + open_len..close_index]
+                    .iter()
+                    .collect::<String>();
+                output.push_str(&inner.replace('\\', MATH_BACKSLASH_PLACEHOLDER));
+
+                output.extend(chars[close_index..close_index + close_token.len()].iter());
+                index = close_index + close_token.len();
+                continue;
+            }
+
+            output.push(chars[index]);
+            index += 1;
+        }
+
+        output
+    }
+
+    fn restore_math_mode_backslashes(value: &str) -> String {
+        value.replace(MATH_BACKSLASH_PLACEHOLDER, "\\")
+    }
+
+    fn math_delimiter_at(chars: &[char], index: usize) -> Option<(usize, Vec<char>)> {
+        if chars[index] == '$' && !Self::is_escaped(chars, index) {
+            if index + 1 < chars.len() && chars[index + 1] == '$' {
+                return Some((2, vec!['$', '$']));
+            }
+
+            return Some((1, vec!['$']));
+        }
+
+        if chars[index] == '\\' && !Self::is_escaped(chars, index) && index + 1 < chars.len() {
+            return match chars[index + 1] {
+                '(' => Some((2, vec!['\\', ')'])),
+                '[' => Some((2, vec!['\\', ']'])),
+                _ => None,
+            };
+        }
+
+        None
+    }
+
+    fn find_unescaped_token(chars: &[char], start: usize, token: &[char]) -> Option<usize> {
+        let mut index = start;
+
+        while index + token.len() <= chars.len() {
+            if chars[index..index + token.len()] == *token && !Self::is_escaped(chars, index) {
+                return Some(index);
+            }
+
+            index += 1;
+        }
+
+        None
+    }
+
+    fn is_escaped(chars: &[char], index: usize) -> bool {
+        if index == 0 {
+            return false;
+        }
+
+        let mut slash_count = 0;
+        let mut lookback = index;
+        while lookback > 0 {
+            lookback -= 1;
+            if chars[lookback] == '\\' {
+                slash_count += 1;
+            } else {
+                break;
+            }
+        }
+
+        slash_count % 2 == 1
     }
 
     fn parse_slugified_keywords(value: &str) -> Vec<String> {
@@ -622,5 +722,38 @@ mod tests {
         let error = BibTeXParser::parse_str(src).expect_err("invalid BibTeX should fail");
         let error_text = format!("{error:#}");
         assert!(error_text.contains("Failed to parse BibTeX content"));
+    }
+
+    #[test]
+    fn test_parse_preserves_math_mode_regions_with_latex_commands() {
+        let src = r#"
+@article{k1,
+  title = {outside \textemdash \textasciitilde \textasciicircum; $inline \textemdash \textasciitilde \textasciicircum$; $$display \textemdash \textasciitilde \textasciicircum$$; \(paren \textemdash \textasciitilde \textasciicircum\); \[bracket \textemdash \textasciitilde \textasciicircum\]}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with math-mode commands");
+        let entry = &entries[0];
+
+        assert!(
+            entry
+                .title
+                .contains("$inline \\textemdash \\textasciitilde \\textasciicircum$")
+        );
+        assert!(
+            entry
+                .title
+                .contains("$$display \\textemdash \\textasciitilde \\textasciicircum$$")
+        );
+        assert!(
+            entry
+                .title
+                .contains("\\(paren \\textemdash \\textasciitilde \\textasciicircum\\)")
+        );
+        assert!(
+            entry
+                .title
+                .contains("\\[bracket \\textemdash \\textasciitilde \\textasciicircum\\]")
+        );
     }
 }

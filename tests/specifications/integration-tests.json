@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-27-001",
+    "version": "v2026-04-28-003",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -132,6 +132,38 @@
             "expected_outcomes": [
                 "Invalid template syntax produces an error that exposes the underlying rendering or parsing issue.",
                 "Missing or invalid input artefacts fail immediately with an informative error message."
+            ]
+        },
+        {
+            "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-001",
+            "objective": "Verify that latex_substitute does not modify content inside supported math mode regions while still substituting outside those regions.",
+            "requirements": [
+                "4",
+                "4.1"
+            ],
+            "fixtures": [
+                "inline_latex_math_mode_bib",
+                "template_latex_substitute"
+            ],
+            "expected_outcomes": [
+                "Substitutions are applied for matching LaTeX snippets outside math mode regions.",
+                "Content enclosed by $...$, $$...$$, \\(...\\), and \\[...\\] remains unchanged."
+            ]
+        },
+        {
+            "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-002",
+            "objective": "Verify that latex_substitute preserves supported math mode regions when real built-in default-map tokens are present.",
+            "requirements": [
+                "4",
+                "4.1"
+            ],
+            "fixtures": [
+                "inline_latex_math_mode_real_tokens_bib",
+                "template_latex_substitute"
+            ],
+            "expected_outcomes": [
+                "Built-in default substitutions are applied for matching LaTeX snippets outside math mode regions.",
+                "Real built-in tokens inside $...$, $$...$$, \\(...\\), and \\[...\\] remain unchanged."
             ]
         }
     ]

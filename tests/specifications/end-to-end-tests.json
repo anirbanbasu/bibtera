@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-28-001",
+    "version": "v2026-04-28-003",
     "scope": "end-to-end",
     "description": "Scenario catalogue for CLI-level workflows and observable outcomes.",
     "required_fields": [
@@ -124,6 +124,42 @@
                 "The command exits successfully when the custom substitution map file is provided.",
                 "Rendered output applies custom substitutions in preference to built-in defaults.",
                 "Without the custom map option, rendered output uses the built-in default substitutions."
+            ]
+        },
+        {
+            "id": "E2E-TRANSFORM-LATEX-SUBSTITUTION-MATH-MODE-002",
+            "command": "transform",
+            "objective": "Verify that latex_substitute preserves all supported math mode regions while still substituting matching LaTeX snippets outside those regions.",
+            "requirements": [
+                "4",
+                "4.1"
+            ],
+            "fixtures": [
+                "inline_latex_math_mode_bib",
+                "template_latex_substitute"
+            ],
+            "expected_outcomes": [
+                "The command exits successfully for input containing mixed plain text and math-mode sections.",
+                "Rendered output substitutes matching LaTeX snippets outside math mode regions.",
+                "Rendered output leaves content inside $...$, $$...$$, \\(...\\), and \\[...\\] unchanged."
+            ]
+        },
+        {
+            "id": "E2E-TRANSFORM-LATEX-SUBSTITUTION-MATH-MODE-003",
+            "command": "transform",
+            "objective": "Verify that latex_substitute preserves supported math mode regions when real built-in default-map tokens are present.",
+            "requirements": [
+                "4",
+                "4.1"
+            ],
+            "fixtures": [
+                "inline_latex_math_mode_real_tokens_bib",
+                "template_latex_substitute"
+            ],
+            "expected_outcomes": [
+                "The command exits successfully for input containing real built-in LaTeX substitution tokens in mixed plain text and math-mode sections.",
+                "Rendered output applies built-in substitutions outside math mode regions.",
+                "Rendered output leaves real built-in tokens inside $...$, $$...$$, \\(...\\), and \\[...\\] unchanged."
             ]
         },
         {

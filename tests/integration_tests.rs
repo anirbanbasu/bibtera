@@ -239,6 +239,78 @@ fn it_raw_bibtex_001_exposes_raw_bibtex_field() {
 }
 
 #[test]
+fn it_latex_substitution_math_mode_001_preserves_math_regions_for_templates() {
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = unique_temp_file("it_latex_math_mode", "md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "{{ latex_substitute(value=title) }}";
+    fs::write(&temp_file, template_content).expect("write template");
+    engine.add_template(&temp_file).expect("add template");
+
+    let entry = bibtera::parser::BibTeXEntry::new(
+        "test-math-mode".to_string(),
+        "article".to_string(),
+        vec!["Doe, Jane".to_string()],
+        r#"outside \"{o}; $inline \"{o}$; $$display \"{o}$$; \(paren \"{o}\); \[bracket \"{o}\]"#
+            .to_string(),
+    );
+
+    let rendered = engine
+        .render_entry(
+            temp_file
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .expect("template stem"),
+            &entry,
+        )
+        .expect("render entry");
+
+    assert_eq!(
+        rendered,
+        r#"outside ö; $inline \"{o}$; $$display \"{o}$$; \(paren \"{o}\); \[bracket \"{o}\]"#
+    );
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
+fn it_latex_substitution_math_mode_002_preserves_real_default_map_tokens_in_math_regions() {
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = unique_temp_file("it_latex_math_mode_real_tokens", "md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "{{ latex_substitute(value=title) }}";
+    fs::write(&temp_file, template_content).expect("write template");
+    engine.add_template(&temp_file).expect("add template");
+
+    let entry = bibtera::parser::BibTeXEntry::new(
+        "test-math-mode-real-tokens".to_string(),
+        "article".to_string(),
+        vec!["Doe, Jane".to_string()],
+        r#"outside \textemdash \textasciitilde \textasciicircum; $inline \textemdash \textasciitilde \textasciicircum$; $$display \textemdash \textasciitilde \textasciicircum$$; \(paren \textemdash \textasciitilde \textasciicircum\); \[bracket \textemdash \textasciitilde \textasciicircum\]"#
+            .to_string(),
+    );
+
+    let rendered = engine
+        .render_entry(
+            temp_file
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .expect("template stem"),
+            &entry,
+        )
+        .expect("render entry");
+
+    assert_eq!(
+        rendered,
+        r#"outside — ~ ^; $inline \textemdash \textasciitilde \textasciicircum$; $$display \textemdash \textasciitilde \textasciicircum$$; \(paren \textemdash \textasciitilde \textasciicircum\); \[bracket \textemdash \textasciitilde \textasciicircum\]"#
+    );
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn it_single_mode_context_001_exposes_entries_collection_to_templates() {
     let src = r#"
 @article{k1,

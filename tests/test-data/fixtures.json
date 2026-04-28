@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-04-28-001",
+    "version": "v2026-04-28-003",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -50,6 +50,14 @@
         "inline_latex_substitution_bib": {
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source with LaTeX snippets used to verify helper-based substitution behaviour."
+        },
+        "inline_latex_math_mode_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source with mixed plain text and $...$, $$...$$, \\(...\\), and \\[...\\] math mode regions for latex_substitute preservation checks."
+        },
+        "inline_latex_math_mode_real_tokens_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source with real built-in default substitution-map tokens across plain text and $...$, $$...$$, \\(...\\), and \\[...\\] math mode regions."
         },
         "inline_custom_latex_substitution_map": {
             "kind": "inline-data",

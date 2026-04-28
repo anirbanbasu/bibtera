@@ -89,8 +89,20 @@ pub fn substitute_latex_to_text_with_ordered(
     input: &str,
     ordered_substitutions: &[(String, String)],
 ) -> String {
-    let unwrapped = unwrap_formatting_commands(input);
-    apply_substitutions(&unwrapped, ordered_substitutions)
+    let segments = split_math_segments(input);
+    let mut output = String::new();
+
+    for segment in segments {
+        match segment {
+            Segment::Text(text) => {
+                let unwrapped = unwrap_formatting_commands(&text);
+                output.push_str(&apply_substitutions(&unwrapped, ordered_substitutions));
+            }
+            Segment::Math(math) => output.push_str(&math),
+        }
+    }
+
+    output
 }
 
 /// Convert LaTeX snippets in an input string to plain text using a map.
@@ -107,6 +119,85 @@ fn apply_substitutions(input: &str, ordered_substitutions: &[(String, String)]) 
     }
 
     output
+}
+
+#[derive(Debug)]
+enum Segment {
+    Text(String),
+    Math(String),
+}
+
+fn split_math_segments(input: &str) -> Vec<Segment> {
+    let chars = input.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    let mut text_buffer = String::new();
+    let mut segments = Vec::new();
+
+    while index < chars.len() {
+        if let Some((math_segment, next_index)) = consume_math_segment(&chars, index) {
+            if !text_buffer.is_empty() {
+                segments.push(Segment::Text(std::mem::take(&mut text_buffer)));
+            }
+            segments.push(Segment::Math(math_segment));
+            index = next_index;
+            continue;
+        }
+
+        text_buffer.push(chars[index]);
+        index += 1;
+    }
+
+    if !text_buffer.is_empty() {
+        segments.push(Segment::Text(text_buffer));
+    }
+
+    segments
+}
+
+fn consume_math_segment(chars: &[char], start: usize) -> Option<(String, usize)> {
+    if start >= chars.len() {
+        return None;
+    }
+
+    if chars[start] == '$' && !is_escaped(chars, start) {
+        if start + 1 < chars.len() && chars[start + 1] == '$' {
+            return extract_delimited_segment(chars, start, "$$", 2);
+        }
+
+        return extract_delimited_segment(chars, start, "$", 1);
+    }
+
+    if chars[start] == '\\' && !is_escaped(chars, start) && start + 1 < chars.len() {
+        return match chars[start + 1] {
+            '(' => extract_delimited_segment(chars, start, "\\)", 2),
+            '[' => extract_delimited_segment(chars, start, "\\]", 2),
+            _ => None,
+        };
+    }
+
+    None
+}
+
+fn extract_delimited_segment(
+    chars: &[char],
+    start: usize,
+    close: &str,
+    open_len: usize,
+) -> Option<(String, usize)> {
+    let close_chars = close.chars().collect::<Vec<_>>();
+    let close_len = close_chars.len();
+    let mut index = start + open_len;
+
+    while index + close_len <= chars.len() {
+        let is_match = chars[index..index + close_len] == close_chars[..];
+        if is_match && !is_escaped(chars, index) {
+            let content = chars[start..index + close_len].iter().collect::<String>();
+            return Some((content, index + close_len));
+        }
+
+        index += 1;
+    }
+    None
 }
 
 fn unwrap_formatting_commands(input: &str) -> String {
@@ -269,5 +360,29 @@ mod tests {
         let substitutions = SubstitutionMap::new();
         let output = substitute_latex_to_text("\\unknown{value}", &substitutions);
         assert_eq!(output, "\\unknown{value}");
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_skips_substitutions_inside_all_math_mode_regions() {
+        let mut substitutions = SubstitutionMap::new();
+        substitutions.insert("\\\"{o}".to_string(), "ö".to_string());
+
+        let input = r#"outside \"{o}; $inline \"{o}$; $$display \"{o}$$; \(paren \"{o}\); \[bracket \"{o}\]"#;
+
+        let output = substitute_latex_to_text(input, &substitutions);
+
+        assert_eq!(
+            output,
+            r#"outside ö; $inline \"{o}$; $$display \"{o}$$; \(paren \"{o}\); \[bracket \"{o}\]"#
+        );
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_treats_unclosed_math_markers_as_plain_text() {
+        let mut substitutions = SubstitutionMap::new();
+        substitutions.insert("\\\"{o}".to_string(), "ö".to_string());
+
+        let output = substitute_latex_to_text(r#"prefix $ unclosed \"{o}"#, &substitutions);
+        assert_eq!(output, "prefix $ unclosed ö");
     }
 }

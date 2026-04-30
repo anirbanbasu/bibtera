@@ -52,6 +52,7 @@ The core code is structured into the following modules within the `src` director
 - `utils.rs`: Contains utility functions that are used across the project.
 - `cli.rs`: Contains the command-line interface definitions using Clap.
 - `config.rs`: Contains runtime configuration validation and filter handling for CLI arguments.
+- `latex.rs`: Contains logic for handling LaTeX-specific formatting and LaTeX substitutions.
 - `lib.rs`: Exposes the library modules used by the binary and tests.
 
 Outside the `src` directory, we have:

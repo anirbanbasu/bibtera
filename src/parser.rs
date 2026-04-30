@@ -8,11 +8,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use biblatex::{Bibliography, ChunksExt};
+use biblatex::{Bibliography, Chunk, ChunksExt, RawBibliography, RawChunk};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-const MATH_BACKSLASH_PLACEHOLDER: &str = "__BIBTERA_MATH_BS_8C6EBAAF__";
 
 /// Error types for BibTeX parsing operations
 #[derive(Error, Debug)]
@@ -148,11 +146,13 @@ impl BibTeXParser {
 
     /// Parse BibTeX entries from a source string
     pub fn parse_str(src: &str) -> Result<Vec<BibTeXEntry>> {
-        let protected_source = Self::protect_math_mode_backslashes(src);
+        let raw_bibliography =
+            RawBibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
+        let raw_field_lookup = Self::build_raw_field_lookup(&raw_bibliography);
 
         // Parse using BibLatex
         let bibliography =
-            Bibliography::parse(&protected_source).map_err(|e| ParseError::Parse(e.to_string()))?;
+            Bibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
 
         if bibliography.is_empty() {
             return Err(ParseError::NoEntries("input".to_string()).into());
@@ -161,7 +161,10 @@ impl BibTeXParser {
         // Convert to our internal representation
         let parsed_entries = bibliography
             .into_iter()
-            .map(Self::convert_entry)
+            .map(|entry| {
+                let raw_fields = raw_field_lookup.get(&entry.key);
+                Self::convert_entry(entry, raw_fields)
+            })
             .collect::<Vec<BibTeXEntry>>();
 
         Ok(parsed_entries)
@@ -253,7 +256,10 @@ impl BibTeXParser {
     }
 
     /// Convert BibLatex entry to our internal representation
-    fn convert_entry(entry: biblatex::Entry) -> BibTeXEntry {
+    fn convert_entry(
+        entry: biblatex::Entry,
+        raw_fields: Option<&HashMap<String, String>>,
+    ) -> BibTeXEntry {
         let biblatex::Entry {
             key,
             entry_type,
@@ -274,31 +280,43 @@ impl BibTeXParser {
         // Extract title
         let title = all_fields
             .get("title")
-            .map(|t| Self::restore_math_mode_backslashes(&t.format_verbatim()))
+            .map(|t| {
+                Self::format_chunks_preserving_math_syntax(
+                    t,
+                    raw_fields.and_then(|fields| fields.get("title").map(String::as_str)),
+                )
+            })
             .unwrap_or_default();
 
         // Extract year
-        let year = all_fields
-            .get("year")
-            .map(|y| Self::restore_math_mode_backslashes(&y.format_verbatim()));
+        let year = all_fields.get("year").map(|y| {
+            Self::format_chunks_preserving_math_syntax(
+                y,
+                raw_fields.and_then(|fields| fields.get("year").map(String::as_str)),
+            )
+        });
 
         // Extract keywords as slugified list
         let slugified_keywords = all_fields
             .get("keywords")
             .map(|keywords| {
-                Self::parse_slugified_keywords(&Self::restore_math_mode_backslashes(
-                    &keywords.format_verbatim(),
+                Self::parse_slugified_keywords(&Self::format_chunks_preserving_math_syntax(
+                    keywords,
+                    raw_fields.and_then(|fields| fields.get("keywords").map(String::as_str)),
                 ))
             })
             .unwrap_or_default();
 
-        let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields);
+        let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields, raw_fields);
 
         // Build fields map with remaining fields
         let mut fields = HashMap::new();
         for (k, v) in all_fields {
             if k != "author" && k != "title" && k != "year" {
-                let mut value = Self::restore_math_mode_backslashes(&v.format_verbatim());
+                let mut value = Self::format_chunks_preserving_math_syntax(
+                    &v,
+                    raw_fields.and_then(|fields| fields.get(&k).map(String::as_str)),
+                );
                 if k == "month" {
                     value = Self::normalise_month_value(&value);
                 } else if k == "day" {
@@ -326,6 +344,7 @@ impl BibTeXParser {
         key: &str,
         entry_type: &str,
         fields: &std::collections::BTreeMap<String, biblatex::Chunks>,
+        raw_fields: Option<&HashMap<String, String>>,
     ) -> String {
         let mut raw = format!("@{}{{{},\n", entry_type, key);
 
@@ -333,7 +352,10 @@ impl BibTeXParser {
             raw.push_str(&format!(
                 "  {} = {{{}}},\n",
                 field,
-                Self::restore_math_mode_backslashes(&value.format_verbatim())
+                Self::format_chunks_preserving_math_syntax(
+                    value,
+                    raw_fields.and_then(|field_map| field_map.get(field).map(String::as_str)),
+                )
             ));
         }
 
@@ -389,52 +411,168 @@ impl BibTeXParser {
         trimmed.to_string()
     }
 
-    fn protect_math_mode_backslashes(input: &str) -> String {
-        let chars = input.chars().collect::<Vec<_>>();
-        let mut index = 0;
-        let mut output = String::new();
+    fn build_raw_field_lookup(
+        raw_bibliography: &RawBibliography<'_>,
+    ) -> HashMap<String, HashMap<String, String>> {
+        let mut lookup = HashMap::new();
 
-        while index < chars.len() {
-            if let Some((open_len, close_token)) = Self::math_delimiter_at(&chars, index)
-                && let Some(close_index) =
-                    Self::find_unescaped_token(&chars, index + open_len, &close_token)
-            {
-                output.extend(chars[index..index + open_len].iter());
+        for entry in &raw_bibliography.entries {
+            let mut field_map = HashMap::new();
 
-                let inner = chars[index + open_len..close_index]
-                    .iter()
-                    .collect::<String>();
-                output.push_str(&inner.replace('\\', MATH_BACKSLASH_PLACEHOLDER));
+            for pair in &entry.v.fields {
+                let field_name = pair.key.v.to_ascii_lowercase();
+                let mut raw_value = String::new();
 
-                output.extend(chars[close_index..close_index + close_token.len()].iter());
-                index = close_index + close_token.len();
-                continue;
+                for chunk in &pair.value.v {
+                    match chunk.v {
+                        RawChunk::Normal(value) | RawChunk::Abbreviation(value) => {
+                            raw_value.push_str(value)
+                        }
+                    }
+                }
+
+                field_map.insert(field_name, raw_value);
             }
 
-            output.push(chars[index]);
-            index += 1;
+            lookup.insert(entry.v.key.v.to_string(), field_map);
+        }
+
+        lookup
+    }
+
+    fn format_chunks_preserving_math_syntax(
+        chunks: &[biblatex::Spanned<Chunk>],
+        original_value: Option<&str>,
+    ) -> String {
+        let mut output = String::new();
+        let mut prev_was_whitespace = false;
+
+        for chunk in chunks {
+            match &chunk.v {
+                Chunk::Normal(value) => {
+                    for mut ch in value.chars() {
+                        if ch == '\n' || ch == '\r' {
+                            if prev_was_whitespace {
+                                continue;
+                            }
+
+                            ch = ' ';
+                        }
+
+                        output.push(ch);
+                        prev_was_whitespace = ch.is_whitespace();
+                    }
+                }
+                Chunk::Verbatim(value) => {
+                    output.push_str(value);
+                    prev_was_whitespace = value
+                        .chars()
+                        .last()
+                        .map(char::is_whitespace)
+                        .unwrap_or(false);
+                }
+                Chunk::Math(value) => {
+                    output.push('$');
+                    output.push_str(value);
+                    output.push('$');
+                    prev_was_whitespace = false;
+                }
+            }
+        }
+
+        if let Some(original) = original_value {
+            return Self::merge_original_math_segments(&output, original);
         }
 
         output
     }
 
-    fn restore_math_mode_backslashes(value: &str) -> String {
-        value.replace(MATH_BACKSLASH_PLACEHOLDER, "\\")
-    }
+    fn merge_original_math_segments(formatted: &str, original: &str) -> String {
+        let formatted_segments = Self::split_math_segments(formatted);
+        let original_math_segments = Self::split_math_segments(original)
+            .into_iter()
+            .filter(|segment| segment.is_math)
+            .map(|segment| segment.text)
+            .collect::<Vec<_>>();
 
-    fn math_delimiter_at(chars: &[char], index: usize) -> Option<(usize, Vec<char>)> {
-        if chars[index] == '$' && !Self::is_escaped(chars, index) {
-            if index + 1 < chars.len() && chars[index + 1] == '$' {
-                return Some((2, vec!['$', '$']));
-            }
-
-            return Some((1, vec!['$']));
+        if original_math_segments.is_empty() {
+            return formatted.to_string();
         }
 
-        if chars[index] == '\\' && !Self::is_escaped(chars, index) && index + 1 < chars.len() {
-            return match chars[index + 1] {
-                '(' => Some((2, vec!['\\', ')'])),
-                '[' => Some((2, vec!['\\', ']'])),
+        let mut output = String::new();
+        let mut math_index = 0;
+
+        for formatted_segment in formatted_segments {
+            if formatted_segment.is_math {
+                if let Some(original_math) = original_math_segments.get(math_index) {
+                    output.push_str(original_math);
+                } else {
+                    output.push_str(&formatted_segment.text);
+                }
+
+                math_index += 1;
+            } else {
+                output.push_str(&formatted_segment.text);
+            }
+        }
+
+        output
+    }
+
+    fn split_math_segments(value: &str) -> Vec<MathAwareSegment> {
+        let chars = value.chars().collect::<Vec<_>>();
+        let mut index = 0;
+        let mut text_buffer = String::new();
+        let mut segments = Vec::new();
+
+        while index < chars.len() {
+            if let Some((math_segment, next_index)) = Self::consume_math_segment(&chars, index) {
+                if !text_buffer.is_empty() {
+                    segments.push(MathAwareSegment {
+                        is_math: false,
+                        text: std::mem::take(&mut text_buffer),
+                    });
+                }
+
+                segments.push(MathAwareSegment {
+                    is_math: true,
+                    text: math_segment,
+                });
+                index = next_index;
+                continue;
+            }
+
+            text_buffer.push(chars[index]);
+            index += 1;
+        }
+
+        if !text_buffer.is_empty() {
+            segments.push(MathAwareSegment {
+                is_math: false,
+                text: text_buffer,
+            });
+        }
+
+        segments
+    }
+
+    fn consume_math_segment(chars: &[char], start: usize) -> Option<(String, usize)> {
+        if start >= chars.len() {
+            return None;
+        }
+
+        if chars[start] == '$' && !Self::is_escaped(chars, start) {
+            if start + 1 < chars.len() && chars[start + 1] == '$' {
+                return Self::extract_delimited_segment(chars, start, "$$", 2);
+            }
+
+            return Self::extract_delimited_segment(chars, start, "$", 1);
+        }
+
+        if chars[start] == '\\' && !Self::is_escaped(chars, start) && start + 1 < chars.len() {
+            return match chars[start + 1] {
+                '(' => Self::extract_delimited_segment(chars, start, "\\)", 2),
+                '[' => Self::extract_delimited_segment(chars, start, "\\]", 2),
                 _ => None,
             };
         }
@@ -442,12 +580,21 @@ impl BibTeXParser {
         None
     }
 
-    fn find_unescaped_token(chars: &[char], start: usize, token: &[char]) -> Option<usize> {
-        let mut index = start;
+    fn extract_delimited_segment(
+        chars: &[char],
+        start: usize,
+        close: &str,
+        open_len: usize,
+    ) -> Option<(String, usize)> {
+        let close_chars = close.chars().collect::<Vec<_>>();
+        let close_len = close_chars.len();
+        let mut index = start + open_len;
 
-        while index + token.len() <= chars.len() {
-            if chars[index..index + token.len()] == *token && !Self::is_escaped(chars, index) {
-                return Some(index);
+        while index + close_len <= chars.len() {
+            let is_match = chars[index..index + close_len] == close_chars[..];
+            if is_match && !Self::is_escaped(chars, index) {
+                let segment = chars[start..index + close_len].iter().collect::<String>();
+                return Some((segment, index + close_len));
             }
 
             index += 1;
@@ -550,6 +697,11 @@ impl BibTeXParser {
 
         AuthorName { first, last, full }
     }
+}
+
+struct MathAwareSegment {
+    is_math: bool,
+    text: String,
 }
 
 #[cfg(test)]

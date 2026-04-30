@@ -168,7 +168,11 @@ Filter usage:
 {{ fields.abstract | latex_substitute }}
 ```
 
-Formatting commands such as `\\textbf{...}` and nested forms such as `\\textbf{bold \\emph{and italic} text}` are unwrapped to plain text before substitutions are applied.
+Formatting commands such as `\textbf{...}` and nested forms such as `\textbf{bold \emph{and italic} text}` are unwrapped to plain text before substitutions are applied. Only braced formatting-command forms are unwrapped. If a recognised formatting command is not followed by a braced argument, it is preserved verbatim.
+
+> [!NOTE]
+> Some spacing and token-shape normalisation may occur upstream during BibTeX parsing, before template helpers are evaluated. As a result, exact whitespace and token boundaries in rendered output can vary with BibTeX authoring style and parser behaviour. Templates should avoid relying on fragile assumptions about exact inter-token spacing unless that spacing is explicitly encoded in the source data.
+> If spacing is semantically important in your output, encode it explicitly in the BibTeX source (for example, with explicit spacing commands) rather than relying on implicit inter-token whitespace.
 
 ## Contributing
 

@@ -246,7 +246,9 @@ fn unwrap_formatting_commands(input: &str) -> String {
         }
 
         if content_start >= chars.len() || chars[content_start] != '{' {
-            index = content_start;
+            output.push('\\');
+            output.push_str(&command);
+            index = command_end;
             continue;
         }
 
@@ -384,5 +386,13 @@ mod tests {
 
         let output = substitute_latex_to_text(r#"prefix $ unclosed \"{o}"#, &substitutions);
         assert_eq!(output, "prefix $ unclosed ö");
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_preserves_unbraced_formatting_commands() {
+        let substitutions = SubstitutionMap::new();
+
+        let output = substitute_latex_to_text(r#"\\textbf foo and \\emph    bar"#, &substitutions);
+        assert_eq!(output, r#"\\textbf foo and \\emph    bar"#);
     }
 }

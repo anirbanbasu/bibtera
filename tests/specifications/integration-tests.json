@@ -218,6 +218,22 @@
                 "When default initialisation succeeds, latex_substitute helper function and filter are available to templates.",
                 "If default initialisation fails, construction fails immediately with an informative error rather than silently falling back to an unconfigured engine."
             ]
+        },
+        {
+            "id": "IT-MATH-SEGMENT-CONSISTENCY-001",
+            "objective": "Verify that math mode region consistency requirements are enforced: if math segment counts diverge between parser and raw-text detection, the system preserves content rather than silently dropping it.",
+            "requirements": [
+                "IF-TPL-1",
+                "IF-TPL-1.3"
+            ],
+            "fixtures": [
+                "inline_math_preservation_bib"
+            ],
+            "expected_outcomes": [
+                "Math regions in standard formats ($...$, $$...$$, \\(...\\), \\[...\\]) are consistently identified.",
+                "If internal math segment count mismatch is detected, the system falls back to safe content rather than silently dropping math regions.",
+                "Normal cases without mismatch continue to preserve original math content without diagnostic warnings."
+            ]
         }
     ]
 }

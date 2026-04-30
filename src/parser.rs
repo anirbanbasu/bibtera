@@ -499,6 +499,22 @@ impl BibTeXParser {
             return formatted.to_string();
         }
 
+        // Count math segments to detect parser alignment issues (IF-TPL-1.3)
+        let formatted_math_count = formatted_segments.iter().filter(|s| s.is_math).count();
+
+        if formatted_math_count != original_math_segments.len() {
+            // Asymmetry detected: more original math segments than formatted ones.
+            // This indicates a mismatch between parser and raw-text detection.
+            // Fall back to formatted to avoid silently dropping content (IF-TPL-1.3).
+            eprintln!(
+                "Warning: Math segment count mismatch in merge_original_math_segments \
+                 (formatted: {}, original: {}). Using formatted content to preserve all regions.",
+                formatted_math_count,
+                original_math_segments.len()
+            );
+            return formatted.to_string();
+        }
+
         let mut output = String::new();
         let mut math_index = 0;
 
@@ -927,6 +943,24 @@ mod tests {
 
         let merged = BibTeXParser::merge_original_math_segments(formatted, original);
 
+        assert_eq!(merged, formatted);
+    }
+
+    #[test]
+    fn test_merge_original_math_segments_detects_count_mismatch_and_falls_back_to_formatted() {
+        // Simulate a scenario where the formatted content has a different number of math segments
+        // than the original content. This could happen if the parser and raw-text detection diverge.
+        // Requirement IF-TPL-1.3: the system must preserve all detected math content and issue a
+        // diagnostic warning rather than silently dropping content.
+        let formatted = "text $math1$ more $math2$ text";
+        // Original has only one math region in its segments (one single-$ pair)
+        // but formatted has two. The function should detect this mismatch
+        // and fall back to formatted content rather than silently dropping the second math segment.
+        let original = "text $single_original$ more text";
+
+        let merged = BibTeXParser::merge_original_math_segments(formatted, original);
+
+        // Result should be formatted to preserve all detected math content
         assert_eq!(merged, formatted);
     }
 }

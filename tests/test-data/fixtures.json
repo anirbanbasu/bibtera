@@ -67,6 +67,10 @@
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source containing an unclosed $$ opener followed by a later $...$ segment, used to verify that the second $ in $$ is treated as plain text rather than a single-dollar opener."
         },
+        "inline_math_preservation_bib": {
+            "kind": "inline-data",
+            "purpose": "BibTeX source with multiple math mode regions using various delimiters ($...$, $$...$$, \\(...\\), \\[...\\]) to verify consistent math segment identification and preservation even in edge cases (requirement IF-TPL-1.3)."
+        },
         "inline_custom_latex_substitution_map": {
             "kind": "inline-data",
             "purpose": "Custom LaTeX substitution map JSON used to verify override behaviour for built-in defaults."

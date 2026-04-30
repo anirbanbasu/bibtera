@@ -4,6 +4,8 @@
 //! Each template can generate any text-based output format by specifying the appropriate
 //! template file with the desired extension (e.g., template.md for Markdown, template.html for HTML).
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -116,6 +118,11 @@ pub struct TemplateEngine {
     custom_templates: Vec<PathBuf>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static FORCE_TEMPLATE_ENGINE_INIT_FAILURE: Cell<bool> = const { Cell::new(false) };
+}
+
 impl TemplateEngine {
     /// Create a new template engine
     pub fn new() -> Result<Self> {
@@ -124,6 +131,11 @@ impl TemplateEngine {
 
     /// Create a new template engine with optional custom substitution overrides
     pub fn new_with_substitutions(custom_substitutions: Option<SubstitutionMap>) -> Result<Self> {
+        #[cfg(test)]
+        if FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.get()) {
+            anyhow::bail!("Forced template engine initialisation failure for tests");
+        }
+
         let mut tera = Tera::default();
         let substitutions = build_substitution_map(custom_substitutions)?;
         let ordered = ordered_substitutions(&substitutions);
@@ -239,10 +251,8 @@ impl TemplateEngine {
 
 impl Default for TemplateEngine {
     fn default() -> Self {
-        Self::new().unwrap_or_else(|_| Self {
-            tera: Tera::default(),
-            custom_templates: Vec::new(),
-        })
+        Self::new()
+            .unwrap_or_else(|error| panic!("Failed to initialise template engine: {error:#}"))
     }
 }
 
@@ -438,5 +448,59 @@ mod tests {
         assert_eq!(rendered, "A -- B");
 
         let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_default_template_engine_registers_latex_substitute_helpers() {
+        let mut engine = TemplateEngine::default();
+        let temp_file = std::env::temp_dir().join("test_default_engine_latex_substitute.md");
+        let template_content =
+            "{{ latex_substitute(value=title) }} :: {{ title | latex_substitute }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "A \\textemdash B".to_string(),
+        );
+
+        let rendered = engine
+            .render_entry("test_default_engine_latex_substitute", &entry)
+            .unwrap();
+        assert_eq!(rendered, "A — B :: A — B");
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_default_template_engine_panics_when_initialisation_fails() {
+        struct ForceInitFailureReset;
+        impl Drop for ForceInitFailureReset {
+            fn drop(&mut self) {
+                FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.set(false));
+            }
+        }
+
+        FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.set(true));
+        let _reset = ForceInitFailureReset;
+        let panic_result = std::panic::catch_unwind(TemplateEngine::default);
+
+        let panic_payload = match panic_result {
+            Ok(_) => panic!("default constructor should panic"),
+            Err(payload) => payload,
+        };
+        let panic_message = if let Some(message) = panic_payload.downcast_ref::<String>() {
+            message.clone()
+        } else if let Some(message) = panic_payload.downcast_ref::<&str>() {
+            message.to_string()
+        } else {
+            String::new()
+        };
+
+        assert!(panic_message.contains("Failed to initialise template engine"));
+        assert!(panic_message.contains("Forced template engine initialisation failure for tests"));
     }
 }

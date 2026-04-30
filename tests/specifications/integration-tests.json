@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-30-006",
+    "version": "v2026-04-30-007",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -200,6 +200,23 @@
             "expected_outcomes": [
                 "A replacement emitted by one substitution key is not re-matched by later keys in the same substitution pass.",
                 "Output reflects single-pass matching over source text regions only."
+            ]
+        },
+        {
+            "id": "IT-TEMPLATE-ENGINE-DEFAULT-001",
+            "objective": "Verify that template engine default initialisation does not silently degrade and still exposes required helper functionality.",
+            "requirements": [
+                "FUNC-4",
+                "FUNC-5",
+                "IF-TPL-1"
+            ],
+            "fixtures": [
+                "template_latex_substitute",
+                "inline_latex_text_samples"
+            ],
+            "expected_outcomes": [
+                "When default initialisation succeeds, latex_substitute helper function and filter are available to templates.",
+                "If default initialisation fails, construction fails immediately with an informative error rather than silently falling back to an unconfigured engine."
             ]
         }
     ]

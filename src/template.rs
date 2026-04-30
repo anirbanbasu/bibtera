@@ -4,15 +4,90 @@
 //! Each template can generate any text-based output format by specifying the appropriate
 //! template file with the desired extension (e.g., template.md for Markdown, template.html for HTML).
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use tera::{Context as TeraContext, Tera};
+use tera::{
+    Context as TeraContext, Error as TeraError, Filter as TeraFilter, Function as TeraFunction,
+    Tera, Value, from_value, to_value,
+};
 use thiserror::Error;
 
+use crate::latex::{
+    SubstitutionMap, build_substitution_map, ordered_substitutions,
+    substitute_latex_to_text_with_ordered,
+};
 use crate::parser::BibTeXEntry;
+
+#[derive(Clone)]
+struct LatexSubstituteFunction {
+    ordered_substitutions: Vec<(String, String)>,
+}
+
+impl LatexSubstituteFunction {
+    fn new(ordered_substitutions: Vec<(String, String)>) -> Self {
+        Self {
+            ordered_substitutions,
+        }
+    }
+}
+
+impl TeraFunction for LatexSubstituteFunction {
+    fn call(&self, args: &HashMap<String, Value>) -> tera::Result<Value> {
+        let input = extract_substitution_input(args)?;
+        let substituted =
+            substitute_latex_to_text_with_ordered(&input, &self.ordered_substitutions);
+        to_value(substituted).map_err(|error| TeraError::msg(error.to_string()))
+    }
+}
+
+#[derive(Clone)]
+struct LatexSubstituteFilter {
+    ordered_substitutions: Vec<(String, String)>,
+}
+
+impl LatexSubstituteFilter {
+    fn new(ordered_substitutions: Vec<(String, String)>) -> Self {
+        Self {
+            ordered_substitutions,
+        }
+    }
+}
+
+impl TeraFilter for LatexSubstituteFilter {
+    fn filter(&self, value: &Value, _args: &HashMap<String, Value>) -> tera::Result<Value> {
+        let input: String = from_value(value.clone())
+            .map_err(|_| TeraError::msg("latex_substitute filter expects a string value"))?;
+        let substituted =
+            substitute_latex_to_text_with_ordered(&input, &self.ordered_substitutions);
+        to_value(substituted).map_err(|error| TeraError::msg(error.to_string()))
+    }
+}
+
+fn extract_substitution_input(args: &HashMap<String, Value>) -> tera::Result<String> {
+    for key in ["value", "text", "input"] {
+        if let Some(value) = args.get(key) {
+            return from_value(value.clone()).map_err(|_| {
+                TeraError::msg("latex_substitute expects the selected argument to be a string")
+            });
+        }
+    }
+
+    if args.len() == 1
+        && let Some(value) = args.values().next()
+    {
+        return from_value(value.clone())
+            .map_err(|_| TeraError::msg("latex_substitute expects a single string argument"));
+    }
+
+    Err(TeraError::msg(
+        "latex_substitute expects one string argument via `value`, `text`, or `input`",
+    ))
+}
 
 /// Error types for template rendering operations
 #[derive(Error, Debug)]
@@ -43,10 +118,33 @@ pub struct TemplateEngine {
     custom_templates: Vec<PathBuf>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static FORCE_TEMPLATE_ENGINE_INIT_FAILURE: Cell<bool> = const { Cell::new(false) };
+}
+
 impl TemplateEngine {
     /// Create a new template engine
     pub fn new() -> Result<Self> {
-        let tera = Tera::default();
+        Self::new_with_substitutions(None)
+    }
+
+    /// Create a new template engine with optional custom substitution overrides
+    pub fn new_with_substitutions(custom_substitutions: Option<SubstitutionMap>) -> Result<Self> {
+        #[cfg(test)]
+        if FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.get()) {
+            anyhow::bail!("Forced template engine initialisation failure for tests");
+        }
+
+        let mut tera = Tera::default();
+        let substitutions = build_substitution_map(custom_substitutions)?;
+        let ordered = ordered_substitutions(&substitutions);
+
+        tera.register_function(
+            "latex_substitute",
+            LatexSubstituteFunction::new(ordered.clone()),
+        );
+        tera.register_filter("latex_substitute", LatexSubstituteFilter::new(ordered));
 
         Ok(Self {
             tera,
@@ -153,10 +251,8 @@ impl TemplateEngine {
 
 impl Default for TemplateEngine {
     fn default() -> Self {
-        Self::new().unwrap_or_else(|_| Self {
-            tera: Tera::default(),
-            custom_templates: Vec::new(),
-        })
+        Self::new()
+            .unwrap_or_else(|error| panic!("Failed to initialise template engine: {error:#}"))
     }
 }
 
@@ -277,5 +373,134 @@ mod tests {
         assert!(error_text.contains("Failed to load template file"));
 
         let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_render_entry_with_latex_substitute_function() {
+        let mut engine = TemplateEngine::new().unwrap();
+        let temp_file = std::env::temp_dir().join("test_latex_substitute_function.md");
+        let template_content = "{{ latex_substitute(value=title) }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "\\textbf{G\\\"{o}del and \\emph{Br\\'{e}zis}}".to_string(),
+        );
+
+        let rendered = engine
+            .render_entry("test_latex_substitute_function", &entry)
+            .unwrap();
+        assert_eq!(rendered, "Gödel and Brézis");
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_render_entry_with_latex_substitute_filter() {
+        let mut engine = TemplateEngine::new().unwrap();
+        let temp_file = std::env::temp_dir().join("test_latex_substitute_filter.md");
+        let template_content = "{{ title | latex_substitute }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "\\textit{Wei\\ss and H\\\"{o}lder}".to_string(),
+        );
+
+        let rendered = engine
+            .render_entry("test_latex_substitute_filter", &entry)
+            .unwrap();
+        assert_eq!(rendered, "Weiß and Hölder");
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_render_entry_with_custom_substitution_override() {
+        let mut custom = SubstitutionMap::new();
+        custom.insert("\\textemdash".to_string(), "--".to_string());
+
+        let mut engine = TemplateEngine::new_with_substitutions(Some(custom)).unwrap();
+        let temp_file = std::env::temp_dir().join("test_latex_substitute_override.md");
+        let template_content = "{{ latex_substitute(value=title) }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "A \\textemdash B".to_string(),
+        );
+
+        let rendered = engine
+            .render_entry("test_latex_substitute_override", &entry)
+            .unwrap();
+        assert_eq!(rendered, "A -- B");
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_default_template_engine_registers_latex_substitute_helpers() {
+        let mut engine = TemplateEngine::default();
+        let temp_file = std::env::temp_dir().join("test_default_engine_latex_substitute.md");
+        let template_content =
+            "{{ latex_substitute(value=title) }} :: {{ title | latex_substitute }}";
+        std::fs::write(&temp_file, template_content).unwrap();
+
+        engine.add_template(&temp_file).unwrap();
+
+        let entry = BibTeXEntry::new(
+            "test2024".to_string(),
+            "article".to_string(),
+            vec!["Author One".to_string()],
+            "A \\textemdash B".to_string(),
+        );
+
+        let rendered = engine
+            .render_entry("test_default_engine_latex_substitute", &entry)
+            .unwrap();
+        assert_eq!(rendered, "A — B :: A — B");
+
+        let _ = std::fs::remove_file(temp_file);
+    }
+
+    #[test]
+    fn test_default_template_engine_panics_when_initialisation_fails() {
+        struct ForceInitFailureReset;
+        impl Drop for ForceInitFailureReset {
+            fn drop(&mut self) {
+                FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.set(false));
+            }
+        }
+
+        FORCE_TEMPLATE_ENGINE_INIT_FAILURE.with(|should_fail| should_fail.set(true));
+        let _reset = ForceInitFailureReset;
+        let panic_result = std::panic::catch_unwind(TemplateEngine::default);
+
+        let panic_payload = match panic_result {
+            Ok(_) => panic!("default constructor should panic"),
+            Err(payload) => payload,
+        };
+        let panic_message = if let Some(message) = panic_payload.downcast_ref::<String>() {
+            message.clone()
+        } else if let Some(message) = panic_payload.downcast_ref::<&str>() {
+            message.to_string()
+        } else {
+            String::new()
+        };
+
+        assert!(panic_message.contains("Failed to initialise template engine"));
+        assert!(panic_message.contains("Forced template engine initialisation failure for tests"));
     }
 }

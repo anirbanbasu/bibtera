@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[derive(Parser, Debug)]
 #[command(name = "bibtera")]
 #[command(author = "Anirban Basu")]
-#[command(version = "0.1.0")]
+#[command(version)]
 #[command(about = "Parse BibTeX entries and generate output using Tera templates")]
 #[command(
     long_about = "Parse BibTeX entries from input files and generate output in any text-based format using customisable Tera templates. The generated output can be used by static site generators like Zola."
@@ -75,6 +75,10 @@ pub struct TransformArgs {
     /// Render all selected entries in a single output file via the template `entries` variable, where the output filename is derived from the input filename and the template filename
     #[arg(long)]
     pub single: bool,
+
+    /// Path to a custom LaTeX substitution map JSON file used by Tera helper functions
+    #[arg(long)]
+    pub latex_substitution_map: Option<String>,
 
     /// Enable verbose transformation logs
     #[arg(short, long)]

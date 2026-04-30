@@ -1,6 +1,6 @@
 [package]
 name = "bibtera"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 description = "BibTeX translator using the Tera templating engine"
 edition = "2024"

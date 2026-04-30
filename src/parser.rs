@@ -8,9 +8,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use biblatex::{Bibliography, ChunksExt};
+use biblatex::{Bibliography, Chunk, ChunksExt, RawBibliography, RawChunk};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::math::split_math_segments;
 
 /// Error types for BibTeX parsing operations
 #[derive(Error, Debug)]
@@ -146,6 +148,10 @@ impl BibTeXParser {
 
     /// Parse BibTeX entries from a source string
     pub fn parse_str(src: &str) -> Result<Vec<BibTeXEntry>> {
+        let raw_bibliography =
+            RawBibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
+        let raw_field_lookup = Self::build_raw_field_lookup(&raw_bibliography);
+
         // Parse using BibLatex
         let bibliography =
             Bibliography::parse(src).map_err(|e| ParseError::Parse(e.to_string()))?;
@@ -157,7 +163,10 @@ impl BibTeXParser {
         // Convert to our internal representation
         let parsed_entries = bibliography
             .into_iter()
-            .map(Self::convert_entry)
+            .map(|entry| {
+                let raw_fields = raw_field_lookup.get(&entry.key);
+                Self::convert_entry(entry, raw_fields)
+            })
             .collect::<Vec<BibTeXEntry>>();
 
         Ok(parsed_entries)
@@ -249,7 +258,10 @@ impl BibTeXParser {
     }
 
     /// Convert BibLatex entry to our internal representation
-    fn convert_entry(entry: biblatex::Entry) -> BibTeXEntry {
+    fn convert_entry(
+        entry: biblatex::Entry,
+        raw_fields: Option<&HashMap<String, String>>,
+    ) -> BibTeXEntry {
         let biblatex::Entry {
             key,
             entry_type,
@@ -270,25 +282,43 @@ impl BibTeXParser {
         // Extract title
         let title = all_fields
             .get("title")
-            .map(|t| t.format_verbatim())
+            .map(|t| {
+                Self::format_chunks_preserving_math_syntax(
+                    t,
+                    raw_fields.and_then(|fields| fields.get("title").map(String::as_str)),
+                )
+            })
             .unwrap_or_default();
 
         // Extract year
-        let year = all_fields.get("year").map(|y| y.format_verbatim());
+        let year = all_fields.get("year").map(|y| {
+            Self::format_chunks_preserving_math_syntax(
+                y,
+                raw_fields.and_then(|fields| fields.get("year").map(String::as_str)),
+            )
+        });
 
         // Extract keywords as slugified list
         let slugified_keywords = all_fields
             .get("keywords")
-            .map(|keywords| Self::parse_slugified_keywords(&keywords.format_verbatim()))
+            .map(|keywords| {
+                Self::parse_slugified_keywords(&Self::format_chunks_preserving_math_syntax(
+                    keywords,
+                    raw_fields.and_then(|fields| fields.get("keywords").map(String::as_str)),
+                ))
+            })
             .unwrap_or_default();
 
-        let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields);
+        let raw_bibtex = Self::build_raw_bibtex(&key, &entry_type, &all_fields, raw_fields);
 
         // Build fields map with remaining fields
         let mut fields = HashMap::new();
         for (k, v) in all_fields {
             if k != "author" && k != "title" && k != "year" {
-                let mut value = v.format_verbatim();
+                let mut value = Self::format_chunks_preserving_math_syntax(
+                    &v,
+                    raw_fields.and_then(|fields| fields.get(&k).map(String::as_str)),
+                );
                 if k == "month" {
                     value = Self::normalise_month_value(&value);
                 } else if k == "day" {
@@ -316,11 +346,19 @@ impl BibTeXParser {
         key: &str,
         entry_type: &str,
         fields: &std::collections::BTreeMap<String, biblatex::Chunks>,
+        raw_fields: Option<&HashMap<String, String>>,
     ) -> String {
         let mut raw = format!("@{}{{{},\n", entry_type, key);
 
         for (field, value) in fields {
-            raw.push_str(&format!("  {} = {{{}}},\n", field, value.format_verbatim()));
+            raw.push_str(&format!(
+                "  {} = {{{}}},\n",
+                field,
+                Self::format_chunks_preserving_math_syntax(
+                    value,
+                    raw_fields.and_then(|field_map| field_map.get(field).map(String::as_str)),
+                )
+            ));
         }
 
         raw.push('}');
@@ -373,6 +411,130 @@ impl BibTeXParser {
         }
 
         trimmed.to_string()
+    }
+
+    fn build_raw_field_lookup(
+        raw_bibliography: &RawBibliography<'_>,
+    ) -> HashMap<String, HashMap<String, String>> {
+        let mut lookup = HashMap::new();
+
+        for entry in &raw_bibliography.entries {
+            let mut field_map = HashMap::new();
+
+            for pair in &entry.v.fields {
+                let field_name = pair.key.v.to_ascii_lowercase();
+                let mut raw_value = String::new();
+
+                for chunk in &pair.value.v {
+                    match chunk.v {
+                        RawChunk::Normal(value) | RawChunk::Abbreviation(value) => {
+                            raw_value.push_str(value)
+                        }
+                    }
+                }
+
+                field_map.insert(field_name, raw_value);
+            }
+
+            lookup.insert(entry.v.key.v.to_string(), field_map);
+        }
+
+        lookup
+    }
+
+    fn format_chunks_preserving_math_syntax(
+        chunks: &[biblatex::Spanned<Chunk>],
+        original_value: Option<&str>,
+    ) -> String {
+        let mut output = String::new();
+        let mut prev_was_whitespace = false;
+
+        for chunk in chunks {
+            match &chunk.v {
+                Chunk::Normal(value) => {
+                    for mut ch in value.chars() {
+                        if ch == '\n' || ch == '\r' {
+                            if prev_was_whitespace {
+                                continue;
+                            }
+
+                            ch = ' ';
+                        }
+
+                        output.push(ch);
+                        prev_was_whitespace = ch.is_whitespace();
+                    }
+                }
+                Chunk::Verbatim(value) => {
+                    output.push_str(value);
+                    prev_was_whitespace = value
+                        .chars()
+                        .last()
+                        .map(char::is_whitespace)
+                        .unwrap_or(false);
+                }
+                Chunk::Math(value) => {
+                    output.push('$');
+                    output.push_str(value);
+                    output.push('$');
+                    prev_was_whitespace = false;
+                }
+            }
+        }
+
+        if let Some(original) = original_value {
+            return Self::merge_original_math_segments(&output, original);
+        }
+
+        output
+    }
+
+    fn merge_original_math_segments(formatted: &str, original: &str) -> String {
+        let formatted_segments = split_math_segments(formatted);
+        let original_math_segments = split_math_segments(original)
+            .into_iter()
+            .filter(|segment| segment.is_math)
+            .map(|segment| segment.text)
+            .collect::<Vec<_>>();
+
+        if original_math_segments.is_empty() {
+            return formatted.to_string();
+        }
+
+        // Count math segments to detect parser alignment issues (IF-TPL-1.3)
+        let formatted_math_count = formatted_segments.iter().filter(|s| s.is_math).count();
+
+        if formatted_math_count != original_math_segments.len() {
+            // Asymmetry detected: more original math segments than formatted ones.
+            // This indicates a mismatch between parser and raw-text detection.
+            // Fall back to formatted to avoid silently dropping content (IF-TPL-1.3).
+            eprintln!(
+                "Warning: Math segment count mismatch in merge_original_math_segments \
+                 (formatted: {}, original: {}). Using formatted content to preserve all regions.",
+                formatted_math_count,
+                original_math_segments.len()
+            );
+            return formatted.to_string();
+        }
+
+        let mut output = String::new();
+        let mut math_index = 0;
+
+        for formatted_segment in formatted_segments {
+            if formatted_segment.is_math {
+                if let Some(original_math) = original_math_segments.get(math_index) {
+                    output.push_str(original_math);
+                } else {
+                    output.push_str(&formatted_segment.text);
+                }
+
+                math_index += 1;
+            } else {
+                output.push_str(&formatted_segment.text);
+            }
+        }
+
+        output
     }
 
     fn parse_slugified_keywords(value: &str) -> Vec<String> {
@@ -622,5 +784,66 @@ mod tests {
         let error = BibTeXParser::parse_str(src).expect_err("invalid BibTeX should fail");
         let error_text = format!("{error:#}");
         assert!(error_text.contains("Failed to parse BibTeX content"));
+    }
+
+    #[test]
+    fn test_parse_preserves_math_mode_regions_with_latex_commands() {
+        let src = r#"
+@article{k1,
+  title = {outside \textemdash \textasciitilde \textasciicircum; $inline \textemdash \textasciitilde \textasciicircum$; $$display \textemdash \textasciitilde \textasciicircum$$; \(paren \textemdash \textasciitilde \textasciicircum\); \[bracket \textemdash \textasciitilde \textasciicircum\]}
+}
+"#;
+
+        let entries = BibTeXParser::parse_str(src).expect("parse source with math-mode commands");
+        let entry = &entries[0];
+
+        assert!(
+            entry
+                .title
+                .contains("$inline \\textemdash \\textasciitilde \\textasciicircum$")
+        );
+        assert!(
+            entry
+                .title
+                .contains("$$display \\textemdash \\textasciitilde \\textasciicircum$$")
+        );
+        assert!(
+            entry
+                .title
+                .contains("\\(paren \\textemdash \\textasciitilde \\textasciicircum\\)")
+        );
+        assert!(
+            entry
+                .title
+                .contains("\\[bracket \\textemdash \\textasciitilde \\textasciicircum\\]")
+        );
+    }
+
+    #[test]
+    fn test_merge_original_math_segments_unclosed_double_dollar_does_not_misparse_single_dollar() {
+        let original = "$$unclosed TOKEN $real$ math TOKEN";
+        let formatted = "$$unclosed CHANGED $real$ math CHANGED";
+
+        let merged = BibTeXParser::merge_original_math_segments(formatted, original);
+
+        assert_eq!(merged, formatted);
+    }
+
+    #[test]
+    fn test_merge_original_math_segments_detects_count_mismatch_and_falls_back_to_formatted() {
+        // Simulate a scenario where the formatted content has a different number of math segments
+        // than the original content. This could happen if the parser and raw-text detection diverge.
+        // Requirement IF-TPL-1.3: the system must preserve all detected math content and issue a
+        // diagnostic warning rather than silently dropping content.
+        let formatted = "text $math1$ more $math2$ text";
+        // Original has only one math region in its segments (one single-$ pair)
+        // but formatted has two. The function should detect this mismatch
+        // and fall back to formatted content rather than silently dropping the second math segment.
+        let original = "text $single_original$ more text";
+
+        let merged = BibTeXParser::merge_original_math_segments(formatted, original);
+
+        // Result should be formatted to preserve all detected math content
+        assert_eq!(merged, formatted);
     }
 }

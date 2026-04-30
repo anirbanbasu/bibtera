@@ -17,8 +17,18 @@ permissions:
 on:
     push:
         branches: [ "master" ]
+        paths:
+            - "**/*.rs"
+            - "**/Cargo.toml"
+            - "**/Cargo.lock"
+            - ".github/workflows/codeql.yml"
     pull_request:
         branches: [ "master" ]
+        paths:
+            - "**/*.rs"
+            - "**/Cargo.toml"
+            - "**/Cargo.lock"
+            - ".github/workflows/codeql.yml"
     schedule:
         - cron: "45 7 * * 6"
 

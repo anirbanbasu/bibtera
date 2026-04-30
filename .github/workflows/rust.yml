@@ -13,12 +13,14 @@ on:
             - "**/*.rs"
             - "**/Cargo.toml"
             - "**/Cargo.lock"
+            - ".github/workflows/rust.yml"
     pull_request:
         branches: [ "master" ]
         paths:
             - "**/*.rs"
             - "**/Cargo.toml"
             - "**/Cargo.lock"
+            - ".github/workflows/rust.yml"
 
 env:
     CARGO_TERM_COLOR: always

@@ -12,9 +12,13 @@ on:
             - master
             - develop
             - release/*
+        paths:
+            - "**/*.md"
+            - ".github/workflows/md-lint.yml"
     pull_request:
-    merge_group:
-    workflow_dispatch:
+        paths:
+            - "**/*.md"
+            - ".github/workflows/md-lint.yml"
 jobs:
     lint:
         runs-on: ubuntu-latest
@@ -28,16 +32,6 @@ jobs:
               uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
             - name: Lint
               uses: DavidAnson/markdownlint-cli2-action@6b51ade7a9e4a75a7ad929842dd298a3804ebe8b # v23.1.0
-              with:
-                  globs: |
-                      README.md,
-                      CONTRIBUTING.md,
-                      CONTRIBUTORS.md,
-                      docs/**/*.md
-                      docs/decisions/0000-use-markdown-architectural-decision-records.md
-                      docs/decisions/adr-template-minimal.md
-                      docs/decisions/adr-template.md
-                      docs/decisions/README.md
     changelog:
         name: CHANGELOG.md
         runs-on: ubuntu-latest

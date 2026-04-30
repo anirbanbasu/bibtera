@@ -919,4 +919,14 @@ mod tests {
                 .contains("\\[bracket \\textemdash \\textasciitilde \\textasciicircum\\]")
         );
     }
+
+    #[test]
+    fn test_merge_original_math_segments_unclosed_double_dollar_does_not_misparse_single_dollar() {
+        let original = "$$unclosed TOKEN $real$ math TOKEN";
+        let formatted = "$$unclosed CHANGED $real$ math CHANGED";
+
+        let merged = BibTeXParser::merge_original_math_segments(formatted, original);
+
+        assert_eq!(merged, formatted);
+    }
 }

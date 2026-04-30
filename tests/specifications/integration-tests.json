@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-28-003",
+    "version": "v2026-04-30-004",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -164,6 +164,24 @@
             "expected_outcomes": [
                 "Built-in default substitutions are applied for matching LaTeX snippets outside math mode regions.",
                 "Real built-in tokens inside $...$, $$...$$, \\(...\\), and \\[...\\] remain unchanged."
+            ]
+        },
+        {
+            "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-003",
+            "objective": "Verify that latex_substitute treats an unclosed $$ opener as plain text and still preserves a later valid $...$ math segment.",
+            "requirements": [
+                "4",
+                "4.1"
+            ],
+            "fixtures": [
+                "inline_latex_math_mode_unclosed_double_dollar_bib",
+                "template_latex_substitute",
+                "inline_custom_latex_substitution_map"
+            ],
+            "expected_outcomes": [
+                "The unmatched $$ opener is treated as plain text for substitution purposes.",
+                "A later well-formed $...$ segment remains unchanged.",
+                "Substitutions continue to apply outside preserved math segments."
             ]
         }
     ]

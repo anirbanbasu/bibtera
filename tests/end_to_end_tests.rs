@@ -558,6 +558,63 @@ fn e2e_transform_latex_substitution_math_mode_003_preserves_real_default_tokens_
 }
 
 #[test]
+fn e2e_transform_latex_substitution_math_mode_004_treats_unclosed_double_dollar_as_plain_text() {
+    let fixture_dir =
+        unique_test_dir("e2e_transform_latex_substitution_math_mode_unclosed_double_dollar");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let input_path = fixture_dir.join("input_math_mode_unclosed_double_dollar.bib");
+    fs::write(
+        &input_path,
+        concat!(
+            "@article{uncloseddoubledollar2026,\n",
+            "  title = {$$unclosed TOKEN $real$ math TOKEN},\n",
+            "  author = {Doe, John},\n",
+            "  year = {2026}\n",
+            "}\n"
+        ),
+    )
+    .expect("write unclosed-double-dollar input bib");
+
+    let template_path = fixture_dir.join("template_latex_math_mode_unclosed_double_dollar.md");
+    fs::write(&template_path, "{{ latex_substitute(value=title) }}\n")
+        .expect("write latex substitute template");
+
+    let custom_map_path = fixture_dir.join("custom_substitution_map.json");
+    fs::write(&custom_map_path, "{\"TOKEN\": \"CHANGED\"}\n")
+        .expect("write custom substitution map");
+
+    let output_dir =
+        unique_test_dir("e2e_transform_latex_substitution_math_mode_unclosed_double_dollar");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input_path.to_str().expect("input path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include",
+            "uncloseddoubledollar2026",
+            "--latex-substitution-map",
+            custom_map_path.to_str().expect("custom map path"),
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+    let rendered = fs::read_to_string(output_dir.join("uncloseddoubledollar2026.md"))
+        .expect("read rendered output");
+    assert!(rendered.contains("$$unclosed CHANGED $real$ math CHANGED"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
 fn e2e_transform_errors_001_reports_invalid_input_and_template_failures() {
     let malformed_dir = unique_test_dir("e2e_transform_errors");
     fs::create_dir_all(&malformed_dir).expect("create malformed dir");

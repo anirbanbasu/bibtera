@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-04-28-003",
+    "version": "v2026-04-30-004",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -58,6 +58,10 @@
         "inline_latex_math_mode_real_tokens_bib": {
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source with real built-in default substitution-map tokens across plain text and $...$, $$...$$, \\(...\\), and \\[...\\] math mode regions."
+        },
+        "inline_latex_math_mode_unclosed_double_dollar_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source containing an unclosed $$ opener followed by a later $...$ segment, used to verify that the second $ in $$ is treated as plain text rather than a single-dollar opener."
         },
         "inline_custom_latex_substitution_map": {
             "kind": "inline-data",

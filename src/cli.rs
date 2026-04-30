@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[derive(Parser, Debug)]
 #[command(name = "bibtera")]
 #[command(author = "Anirban Basu")]
-#[command(version = "0.1.0")]
+#[command(version)]
 #[command(about = "Parse BibTeX entries and generate output using Tera templates")]
 #[command(
     long_about = "Parse BibTeX entries from input files and generate output in any text-based format using customisable Tera templates. The generated output can be used by static site generators like Zola."

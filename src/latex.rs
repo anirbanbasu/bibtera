@@ -144,7 +144,18 @@ fn split_math_segments(input: &str) -> Vec<Segment> {
         }
 
         text_buffer.push(chars[index]);
-        index += 1;
+        // When an unclosed `$$` is detected, consume both `$` characters as plain
+        // text so the second `$` is not misinterpreted as a single-`$` delimiter.
+        if chars[index] == '$'
+            && !is_escaped(&chars, index)
+            && index + 1 < chars.len()
+            && chars[index + 1] == '$'
+        {
+            text_buffer.push(chars[index + 1]);
+            index += 2;
+        } else {
+            index += 1;
+        }
     }
 
     if !text_buffer.is_empty() {
@@ -394,5 +405,14 @@ mod tests {
 
         let output = substitute_latex_to_text(r#"\\textbf foo and \\emph    bar"#, &substitutions);
         assert_eq!(output, r#"\\textbf foo and \\emph    bar"#);
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_unclosed_double_dollar_does_not_misparse_single_dollar() {
+        let mut substitutions = SubstitutionMap::new();
+        substitutions.insert("TOKEN".to_string(), "REPLACED".to_string());
+
+        let output = substitute_latex_to_text("$$unclosed TOKEN $real$ math TOKEN", &substitutions);
+        assert_eq!(output, "$$unclosed REPLACED $real$ math REPLACED");
     }
 }

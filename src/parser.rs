@@ -543,7 +543,18 @@ impl BibTeXParser {
             }
 
             text_buffer.push(chars[index]);
-            index += 1;
+            // When an unclosed `$$` is detected, consume both `$` characters as plain
+            // text so the second `$` is not misinterpreted as a single-`$` delimiter.
+            if chars[index] == '$'
+                && !Self::is_escaped(&chars, index)
+                && index + 1 < chars.len()
+                && chars[index + 1] == '$'
+            {
+                text_buffer.push(chars[index + 1]);
+                index += 2;
+            } else {
+                index += 1;
+            }
         }
 
         if !text_buffer.is_empty() {

@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
-- None documented yet.
+- A `latex_substitute` Tera template helper (available as both function and filter) that converts LaTeX markup to plain Unicode text.
 
 ### Changed
 
-- None documented yet.
+- Updated the requirements specification.
+- Upgraded dependencies.
 
 ### Deprecated
 

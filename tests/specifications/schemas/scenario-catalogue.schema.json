@@ -97,7 +97,7 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "pattern": "^[0-9]+(\\.[0-9]+)*$"
+                        "pattern": "^(FUNC|NON-FUNC|IF-CLI|IF-TPL|TEST)-[0-9]+(\\.[0-9]+)*$"
                     },
                     "uniqueItems": true,
                     "minItems": 1

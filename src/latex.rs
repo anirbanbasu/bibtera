@@ -112,10 +112,27 @@ pub fn substitute_latex_to_text(input: &str, substitutions: &SubstitutionMap) ->
 }
 
 fn apply_substitutions(input: &str, ordered_substitutions: &[(String, String)]) -> String {
-    let mut output = input.to_string();
+    let mut output = String::with_capacity(input.len());
+    let mut index = 0;
 
-    for (from, to) in ordered_substitutions {
-        output = output.replace(from, to);
+    while index < input.len() {
+        let current = &input[index..];
+
+        if let Some((matched, replacement)) = ordered_substitutions
+            .iter()
+            .find(|(from, _)| current.starts_with(from.as_str()))
+        {
+            output.push_str(replacement);
+            index += matched.len();
+            continue;
+        }
+
+        if let Some(ch) = current.chars().next() {
+            output.push(ch);
+            index += ch.len_utf8();
+        } else {
+            break;
+        }
     }
 
     output

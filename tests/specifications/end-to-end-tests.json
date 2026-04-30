@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-30-004",
+    "version": "v2026-04-30-006",
     "scope": "end-to-end",
     "description": "Scenario catalogue for CLI-level workflows and observable outcomes.",
     "required_fields": [
@@ -17,10 +17,10 @@
             "command": "transform",
             "objective": "Generate output files from a sample BibTeX input and a sample template.",
             "requirements": [
-                "2",
-                "3.1.1",
-                "3.1.2",
-                "3.1.3"
+                "FUNC-2",
+                "IF-CLI-1.1",
+                "IF-CLI-1.2",
+                "IF-CLI-1.3"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -37,7 +37,7 @@
             "command": "transform --dry-run",
             "objective": "Verify that dry-run mode reports intended outputs without writing files.",
             "requirements": [
-                "3.1.6"
+                "IF-CLI-1.6"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -54,7 +54,7 @@
             "command": "transform --overwrite and transform without --overwrite",
             "objective": "Verify overwrite and non-overwrite behaviour for existing output files.",
             "requirements": [
-                "3.1.7"
+                "IF-CLI-1.7"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -71,10 +71,10 @@
             "command": "transform --file-name-strategy",
             "objective": "Verify that supported file naming strategies produce the expected output names.",
             "requirements": [
-                "2.1",
-                "2.1.1",
-                "2.1.2",
-                "3.1.8"
+                "FUNC-2.1",
+                "FUNC-2.1.1",
+                "FUNC-2.1.2",
+                "IF-CLI-1.8"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -91,8 +91,8 @@
             "command": "transform --single",
             "objective": "Verify that single mode renders one output file for the selected entry set.",
             "requirements": [
-                "2.4",
-                "3.1.9"
+                "FUNC-2.4",
+                "IF-CLI-1.9"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -110,10 +110,9 @@
             "command": "transform --latex-substitution-map",
             "objective": "Verify that a custom LaTeX substitution map overrides built-in substitutions for the latex_substitute helper.",
             "requirements": [
-                "3.1.10",
-                "3.1.11",
-                "4",
-                "4.1"
+                "IF-CLI-1.10",
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -127,12 +126,32 @@
             ]
         },
         {
+            "id": "E2E-TRANSFORM-LATEX-SUBSTITUTION-CASCADE-001",
+            "command": "transform --latex-substitution-map",
+            "objective": "Verify that latex_substitute applies custom substitutions with non-cascading semantics for replacement outputs.",
+            "requirements": [
+                "IF-CLI-1.10",
+                "FUNC-4",
+                "IF-TPL-1",
+                "IF-TPL-1.1"
+            ],
+            "fixtures": [
+                "template_latex_substitute",
+                "inline_latex_substitution_cascade_bib",
+                "inline_custom_latex_substitution_map"
+            ],
+            "expected_outcomes": [
+                "The command exits successfully with a custom map where one replacement output resembles another key.",
+                "Rendered output keeps first-pass replacement output and does not apply chained substitutions in the same pass."
+            ]
+        },
+        {
             "id": "E2E-TRANSFORM-LATEX-SUBSTITUTION-MATH-MODE-002",
             "command": "transform",
             "objective": "Verify that latex_substitute preserves all supported math mode regions while still substituting matching LaTeX snippets outside those regions.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_bib",
@@ -149,8 +168,8 @@
             "command": "transform",
             "objective": "Verify that latex_substitute preserves supported math mode regions when real built-in default-map tokens are present.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_real_tokens_bib",
@@ -167,8 +186,8 @@
             "command": "transform",
             "objective": "Verify that latex_substitute treats an unclosed $$ opener as plain text while preserving a later valid $...$ math segment.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_unclosed_double_dollar_bib",
@@ -186,7 +205,7 @@
             "command": "transform --verbose and transform without --verbose",
             "objective": "Verify verbose logging and non-verbose progress behaviour.",
             "requirements": [
-                "3.1.11"
+                "IF-CLI-1.11"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -202,10 +221,10 @@
             "command": "transform with invalid input or template",
             "objective": "Verify that transform fails immediately and reports informative errors for invalid artefacts.",
             "requirements": [
-                "1.5",
-                "2.5",
-                "4",
-                "3.1.3"
+                "FUNC-1.5",
+                "FUNC-2.5",
+                "FUNC-5",
+                "IF-CLI-1.3"
             ],
             "fixtures": [
                 "malformed_bibtex_input",
@@ -222,10 +241,10 @@
             "command": "transform --single on large dataset",
             "objective": "Verify correct single-output rendering for a representative large real-world input file.",
             "requirements": [
-                "2.4",
-                "5",
-                "6",
-                "3.1.9"
+                "FUNC-2.4",
+                "FUNC-7",
+                "NON-FUNC-5",
+                "IF-CLI-1.9"
             ],
             "fixtures": [
                 "input_iclr2025_1k_bib",
@@ -242,8 +261,8 @@
             "command": "info",
             "objective": "Verify the default information output when no input file is provided.",
             "requirements": [
-                "3.2",
-                "3.2.1"
+                "IF-CLI-2",
+                "IF-CLI-2.1"
             ],
             "fixtures": [],
             "expected_outcomes": [
@@ -256,8 +275,8 @@
             "command": "info --input",
             "objective": "Verify information output for entry types present in a supplied input file when no entry selection is made.",
             "requirements": [
-                "3.2",
-                "3.2.1"
+                "IF-CLI-2",
+                "IF-CLI-2.1"
             ],
             "fixtures": [
                 "input_sample_bib"
@@ -272,9 +291,9 @@
             "command": "info --input with --include or --exclude",
             "objective": "Verify parsed key-value output for selected entries.",
             "requirements": [
-                "3.2",
-                "3.2.2",
-                "3.2.3"
+                "IF-CLI-2",
+                "IF-CLI-2.2",
+                "IF-CLI-2.3"
             ],
             "fixtures": [
                 "input_sample_bib",
@@ -290,8 +309,9 @@
             "command": "info --input with a representative selection on a large dataset",
             "objective": "Verify representative parsed information output for a large real-world input file using a repeatable selection rule.",
             "requirements": [
-                "3.2",
-                "6"
+                "IF-CLI-2",
+                "FUNC-7",
+                "NON-FUNC-5"
             ],
             "fixtures": [
                 "input_iclr2025_1k_bib",

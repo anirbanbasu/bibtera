@@ -347,6 +347,43 @@ fn it_latex_substitution_math_mode_003_treats_unclosed_double_dollar_as_plain_te
 }
 
 #[test]
+fn it_latex_substitution_cascade_001_does_not_reprocess_replacement_outputs() {
+    let mut substitutions = bibtera::latex::SubstitutionMap::new();
+    substitutions.insert("TOKENLONG".to_string(), "TOK".to_string());
+    substitutions.insert("TOK".to_string(), "DONE".to_string());
+
+    let mut engine =
+        TemplateEngine::new_with_substitutions(Some(substitutions)).expect("create engine");
+    let temp_file = unique_temp_file("it_latex_substitution_cascade", "md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "{{ latex_substitute(value=title) }}";
+    fs::write(&temp_file, template_content).expect("write template");
+    engine.add_template(&temp_file).expect("add template");
+
+    let entry = bibtera::parser::BibTeXEntry::new(
+        "test-latex-substitution-cascade".to_string(),
+        "article".to_string(),
+        vec!["Doe, Jane".to_string()],
+        "TOKENLONG".to_string(),
+    );
+
+    let rendered = engine
+        .render_entry(
+            temp_file
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .expect("template stem"),
+            &entry,
+        )
+        .expect("render entry");
+
+    assert_eq!(rendered, "TOK");
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn it_single_mode_context_001_exposes_entries_collection_to_templates() {
     let src = r#"
 @article{k1,

@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-04-30-004",
+    "version": "v2026-04-30-005",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -50,6 +50,10 @@
         "inline_latex_substitution_bib": {
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source with LaTeX snippets used to verify helper-based substitution behaviour."
+        },
+        "inline_latex_substitution_cascade_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source containing tokens where one substitution output could match another key, used to verify non-cascading behaviour."
         },
         "inline_latex_math_mode_bib": {
             "kind": "inline-data",

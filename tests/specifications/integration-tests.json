@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-30-004",
+    "version": "v2026-04-30-006",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -15,8 +15,8 @@
             "id": "IT-PARSE-SAMPLE-001",
             "objective": "Verify that valid sample BibTeX input is parsed into expected entry metadata.",
             "requirements": [
-                "1",
-                "1.5"
+                "FUNC-1",
+                "FUNC-1.5"
             ],
             "fixtures": [
                 "input_sample_bib"
@@ -31,7 +31,7 @@
             "id": "IT-AUTHOR-NORMALISATION-001",
             "objective": "Verify that author names in both supported formats are normalised and exposed as structured parts.",
             "requirements": [
-                "1.1"
+                "FUNC-1.1"
             ],
             "fixtures": [
                 "inline_author_formats"
@@ -45,8 +45,8 @@
             "id": "IT-NONSTANDARD-FIELDS-001",
             "objective": "Verify that non-standard BibTeX fields are preserved and exposed to templates.",
             "requirements": [
-                "1.2",
-                "2"
+                "FUNC-1.2",
+                "FUNC-2"
             ],
             "fixtures": [
                 "inline_non_standard_fields",
@@ -61,7 +61,7 @@
             "id": "IT-DATE-NORMALISATION-001",
             "objective": "Verify that month and day values are normalised to zero-prefixed numeric strings.",
             "requirements": [
-                "1.3"
+                "FUNC-1.3"
             ],
             "fixtures": [
                 "inline_month_and_day_formats"
@@ -75,7 +75,7 @@
             "id": "IT-SLUGIFIED-KEYWORDS-001",
             "objective": "Verify that keywords are exposed as a slugified string array for template consumption.",
             "requirements": [
-                "1.4"
+                "FUNC-1.4"
             ],
             "fixtures": [
                 "inline_keywords_mixed_punctuation"
@@ -89,7 +89,7 @@
             "id": "IT-RAW-BIBTEX-001",
             "objective": "Verify that the original BibTeX entry is exposed through the raw_bibtex field.",
             "requirements": [
-                "2.3"
+                "FUNC-2.3"
             ],
             "fixtures": [
                 "inline_raw_bibtex_entry"
@@ -103,8 +103,8 @@
             "id": "IT-SINGLE-MODE-CONTEXT-001",
             "objective": "Verify that single-output rendering exposes the entries collection and supports deterministic output naming inputs.",
             "requirements": [
-                "2.4",
-                "3.1.9"
+                "FUNC-2.4",
+                "IF-CLI-1.9"
             ],
             "fixtures": [
                 "inline_multiple_entries",
@@ -120,9 +120,9 @@
             "id": "IT-ERROR-SURFACING-001",
             "objective": "Verify that invalid template or input conditions surface actionable errors rather than being silently ignored.",
             "requirements": [
-                "1.5",
-                "2.5",
-                "4"
+                "FUNC-1.5",
+                "FUNC-2.5",
+                "FUNC-5"
             ],
             "fixtures": [
                 "invalid_template_comment_syntax",
@@ -138,8 +138,8 @@
             "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-001",
             "objective": "Verify that latex_substitute does not modify content inside supported math mode regions while still substituting outside those regions.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_bib",
@@ -154,8 +154,8 @@
             "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-002",
             "objective": "Verify that latex_substitute preserves supported math mode regions when real built-in default-map tokens are present.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_real_tokens_bib",
@@ -170,8 +170,8 @@
             "id": "IT-LATEX-SUBSTITUTION-MATH-MODE-003",
             "objective": "Verify that latex_substitute treats an unclosed $$ opener as plain text and still preserves a later valid $...$ math segment.",
             "requirements": [
-                "4",
-                "4.1"
+                "FUNC-4",
+                "IF-TPL-1"
             ],
             "fixtures": [
                 "inline_latex_math_mode_unclosed_double_dollar_bib",
@@ -182,6 +182,24 @@
                 "The unmatched $$ opener is treated as plain text for substitution purposes.",
                 "A later well-formed $...$ segment remains unchanged.",
                 "Substitutions continue to apply outside preserved math segments."
+            ]
+        },
+        {
+            "id": "IT-LATEX-SUBSTITUTION-CASCADE-001",
+            "objective": "Verify that latex_substitute does not re-process replacement output as fresh substitution input within the same pass.",
+            "requirements": [
+                "FUNC-4",
+                "IF-TPL-1",
+                "IF-TPL-1.1"
+            ],
+            "fixtures": [
+                "inline_latex_substitution_cascade_bib",
+                "template_latex_substitute",
+                "inline_custom_latex_substitution_map"
+            ],
+            "expected_outcomes": [
+                "A replacement emitted by one substitution key is not re-matched by later keys in the same substitution pass.",
+                "Output reflects single-pass matching over source text regions only."
             ]
         }
     ]

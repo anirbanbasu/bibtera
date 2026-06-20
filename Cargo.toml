@@ -14,7 +14,7 @@ clap = { version = "4.5", features = ["derive"] }
 tera = "1.20"
 
 # BibTeX parsing
-biblatex = "0.11"
+biblatex = "0.12"
 
 # Error handling
 thiserror = "2.0"
@@ -31,7 +31,8 @@ indicatif = "0.18"
 pathdiff = "0.2"
 
 # SHAKE-128 hashing for deterministic filename bytes
-sha3 = "0.11"
+sha3 = "0.12"
+shake = "0.1"
 
 # UUID formatting for uuid7 filename strategy
 uuid = "1.18"

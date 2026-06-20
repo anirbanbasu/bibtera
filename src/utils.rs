@@ -7,8 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use sha3::Shake128;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
+use shake::Shake128;
 use uuid::Uuid;
 
 use crate::config::FileNameStrategy;

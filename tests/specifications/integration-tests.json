@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-30-007",
+    "version": "v2026-06-20-001",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -114,6 +114,26 @@
                 "The template context exposes the entries collection.",
                 "Rendered output can iterate across all selected entries.",
                 "Inputs needed for combined single-mode file naming are available and testable."
+            ]
+        },
+        {
+            "id": "IT-FILTER-BY-TYPE-001",
+            "objective": "Verify that include-type and exclude-type selectors apply correctly and combine predictably with key selectors.",
+            "requirements": [
+                "IF-CLI-1.4.1",
+                "IF-CLI-1.5.1",
+                "IF-CLI-2.2.1",
+                "IF-CLI-2.3.1"
+            ],
+            "fixtures": [
+                "input_sample_bib",
+                "selected_entry_keys",
+                "selected_entry_types"
+            ],
+            "expected_outcomes": [
+                "Include-type returns only entries with matching entry_type values.",
+                "Exclude-type omits entries with excluded entry_type values.",
+                "When key and type selectors are both provided, both constraints are applied."
             ]
         },
         {

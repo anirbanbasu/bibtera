@@ -77,7 +77,11 @@ fn run_transform(config: TransformConfig) -> Result<()> {
     let entries = BibTeXParser::parse_file(&config.input).context("Failed to parse BibTeX file")?;
     let filtered_entries = entries
         .iter()
-        .filter(|entry| config.filter.should_include_entry(&entry.key))
+        .filter(|entry| {
+            config
+                .filter
+                .should_include_entry(&entry.key, &entry.entry_type)
+        })
         .collect::<Vec<_>>();
 
     if config.verbose {
@@ -294,11 +298,14 @@ fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
 fn run_info(config: InfoConfig) -> Result<()> {
     if let Some(input) = &config.input {
         let entries = BibTeXParser::parse_file(input).context("Failed to parse BibTeX file")?;
-        let has_explicit_selection =
-            !config.filter.include.is_empty() || !config.filter.exclude.is_empty();
+        let has_explicit_selection = config.filter.has_explicit_selection();
         let selected = entries
             .iter()
-            .filter(|entry| config.filter.should_include_entry(&entry.key))
+            .filter(|entry| {
+                config
+                    .filter
+                    .should_include_entry(&entry.key, &entry.entry_type)
+            })
             .collect::<Vec<_>>();
 
         if has_explicit_selection && !selected.is_empty() {

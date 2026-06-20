@@ -60,6 +60,14 @@ pub struct TransformArgs {
     #[arg(long)]
     pub include: Option<String>,
 
+    /// Comma-separated BibTeX entry types to exclude
+    #[arg(long = "exclude-type")]
+    pub exclude_type: Option<String>,
+
+    /// Comma-separated BibTeX entry types to include
+    #[arg(long = "include-type")]
+    pub include_type: Option<String>,
+
     /// Perform a dry run without generating any files, but print the intended output file names and their corresponding BibTeX entry keys
     #[arg(short = 'n', long)]
     pub dry_run: bool,
@@ -99,4 +107,12 @@ pub struct InfoArgs {
     /// Comma-separated BibTeX keys to include
     #[arg(long)]
     pub include: Option<String>,
+
+    /// Comma-separated BibTeX entry types to exclude
+    #[arg(long = "exclude-type")]
+    pub exclude_type: Option<String>,
+
+    /// Comma-separated BibTeX entry types to include
+    #[arg(long = "include-type")]
+    pub include_type: Option<String>,
 }

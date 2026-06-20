@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-04-30-006",
+    "version": "v2026-06-20-001",
     "scope": "end-to-end",
     "description": "Scenario catalogue for CLI-level workflows and observable outcomes.",
     "required_fields": [
@@ -103,6 +103,26 @@
                 "Exactly one output file is generated.",
                 "The output file contains rendered content for the selected entries.",
                 "The output file name is derived from the input file name and template file name."
+            ]
+        },
+        {
+            "id": "E2E-TRANSFORM-TYPE-SELECTION-001",
+            "command": "transform with --include-type or --exclude-type",
+            "objective": "Verify that transform supports entry-type filtering and rejects conflicting type selectors.",
+            "requirements": [
+                "IF-CLI-1.4.1",
+                "IF-CLI-1.5.1",
+                "IF-CLI-1.9"
+            ],
+            "fixtures": [
+                "input_sample_bib",
+                "template_entry_md",
+                "selected_entry_types"
+            ],
+            "expected_outcomes": [
+                "With --include-type, only entries of the selected types are rendered.",
+                "With --exclude-type, entries of excluded types are not rendered.",
+                "Supplying both --include-type and --exclude-type fails with an informative validation error."
             ]
         },
         {
@@ -302,6 +322,24 @@
             "expected_outcomes": [
                 "The command exits successfully.",
                 "The output contains parsed information only for the selected entries."
+            ]
+        },
+        {
+            "id": "E2E-INFO-TYPE-SELECTION-001",
+            "command": "info --input with --include-type or --exclude-type",
+            "objective": "Verify parsed key-value output for selected entries when filtering by entry type.",
+            "requirements": [
+                "IF-CLI-2.2.1",
+                "IF-CLI-2.3.1"
+            ],
+            "fixtures": [
+                "input_sample_bib",
+                "selected_entry_types"
+            ],
+            "expected_outcomes": [
+                "With --include-type, output contains only selected entry types.",
+                "With --exclude-type, output excludes the specified entry types.",
+                "Supplying both --include-type and --exclude-type fails with an informative validation error."
             ]
         },
         {

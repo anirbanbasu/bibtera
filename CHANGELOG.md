@@ -34,7 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
-- A `latex_substitute` Tera template helper (available as both function and filter) that converts LaTeX markup to plain Unicode text.
 - Mutually exclusive `--exclude-type` and `--include-type` options to filter the BibTeX entries to be processed based on their types.
 
 ### Changed

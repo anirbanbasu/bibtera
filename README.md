@@ -60,8 +60,10 @@ Common filtering options are as follows.
 
 - `--include key1,key2,...`: Process only selected BibTeX entry keys.
 - `--exclude key1,key2,...`: Process all entries except selected BibTeX entry keys.
+- `--include-type type1,type2,...`: Process only selected BibTeX entry types (for example, `article`, `inproceedings`, etc.).
+- `--exclude-type type1,type2,...`: Process all entry types except selected BibTeX entry types.
 
-You can use either `--include` or `--exclude`, but not both in the same command.
+You can use either `--include` or `--exclude`, but not both in the same command. The same applies to `--include-type` and `--exclude-type`. If you specify both an include and an exclude filter for entry keys or types, BibTera will return an error.
 
 Execution and safety options include the following.
 
@@ -106,6 +108,8 @@ Useful options are as follows.
 - `-i, --input`: Optional input BibTeX file.
 - `--include key1,key2,...`: Show info only for selected BibTeX entry keys.
 - `--exclude key1,key2,...`: Hide selected BibTeX entry keys from the info output.
+- `--include-type type1,type2,...`: Show info only for selected BibTeX entry types (for example, `article`, `inproceedings`, etc.).
+- `--exclude-type type1,type2,...`: Hide selected BibTeX entry types from the info output.
 
 The output of `info` depends on whether an input file is provided and whether entries are selected through filters.
 

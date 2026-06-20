@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use bibtera::config::FilterConfig;
 use bibtera::parser::BibTeXParser;
 use bibtera::template::TemplateEngine;
 
@@ -236,6 +237,57 @@ fn it_raw_bibtex_001_exposes_raw_bibtex_field() {
     assert!(rendered.contains("abstract = {A short abstract}"));
 
     fs::remove_file(&temp_file).ok();
+}
+
+#[test]
+fn it_filter_by_type_001_applies_include_type_and_exclude_type_rules() {
+    let sample_file = examples_dir().join("input_sample.bib");
+    let entries = BibTeXParser::parse_file(&sample_file).expect("parse input_sample.bib");
+
+    let include_type_filter =
+        FilterConfig::from_options(None, None, None, Some("article".to_string()))
+            .expect("build include-type filter");
+
+    let included = entries
+        .iter()
+        .filter(|entry| include_type_filter.should_include_entry(&entry.key, &entry.entry_type))
+        .collect::<Vec<_>>();
+    assert!(!included.is_empty());
+    assert!(included.iter().all(|entry| entry.entry_type == "article"));
+
+    let exclude_type_filter =
+        FilterConfig::from_options(None, None, Some("article".to_string()), None)
+            .expect("build exclude-type filter");
+
+    let excluded = entries
+        .iter()
+        .filter(|entry| exclude_type_filter.should_include_entry(&entry.key, &entry.entry_type))
+        .collect::<Vec<_>>();
+    assert!(!excluded.is_empty());
+    assert!(excluded.iter().all(|entry| entry.entry_type != "article"));
+}
+
+#[test]
+fn it_filter_by_type_002_combines_key_and_type_constraints() {
+    let sample_file = examples_dir().join("input_sample.bib");
+    let entries = BibTeXParser::parse_file(&sample_file).expect("parse input_sample.bib");
+
+    let filter = FilterConfig::from_options(
+        None,
+        Some("smith2020machine,alice2022blog".to_string()),
+        None,
+        Some("article".to_string()),
+    )
+    .expect("build key+type filter");
+
+    let selected = entries
+        .iter()
+        .filter(|entry| filter.should_include_entry(&entry.key, &entry.entry_type))
+        .collect::<Vec<_>>();
+
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].key, "smith2020machine");
+    assert_eq!(selected[0].entry_type, "article");
 }
 
 #[test]

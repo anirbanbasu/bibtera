@@ -318,6 +318,127 @@ fn e2e_transform_single_001_generates_single_output_file() {
 }
 
 #[test]
+fn e2e_transform_include_type_001_filters_entries_by_type() {
+    let output_dir = unique_test_dir("e2e_transform_include_type");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry.md")
+                .to_str()
+                .expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--include-type",
+            "article",
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let generated_files = fs::read_dir(&output_dir)
+        .expect("list output dir")
+        .map(|entry| entry.expect("dir entry").path())
+        .collect::<Vec<_>>();
+
+    assert!(!generated_files.is_empty());
+    assert!(generated_files.len() < 6);
+
+    for file in generated_files {
+        let content = fs::read_to_string(&file).expect("read output file");
+        assert!(content.contains("**Type**: article"));
+    }
+
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
+fn e2e_transform_exclude_type_001_filters_entries_by_type() {
+    let output_dir = unique_test_dir("e2e_transform_exclude_type");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry.md")
+                .to_str()
+                .expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+            "--exclude-type",
+            "article",
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let generated_files = fs::read_dir(&output_dir)
+        .expect("list output dir")
+        .map(|entry| entry.expect("dir entry").path())
+        .collect::<Vec<_>>();
+
+    assert!(!generated_files.is_empty());
+    assert!(generated_files.len() < 6);
+
+    for file in generated_files {
+        let content = fs::read_to_string(&file).expect("read output file");
+        assert!(!content.contains("**Type**: article"));
+    }
+
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
+fn e2e_transform_type_selection_001_rejects_conflicting_type_options() {
+    let output_dir = unique_test_dir("e2e_transform_type_selection_conflict");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry.md")
+                .to_str()
+                .expect("template path"),
+            "--include-type",
+            "article",
+            "--exclude-type",
+            "book",
+        ],
+        None,
+    );
+
+    assert!(!output.status.success());
+    assert!(
+        stderr_text(&output)
+            .contains("Cannot specify both --exclude-type and --include-type at the same time")
+    );
+}
+
+#[test]
 fn e2e_transform_verbose_001_switches_logging_style() {
     let verbose_dir = unique_test_dir("e2e_transform_verbose");
     let verbose = run_bibtera(
@@ -822,6 +943,83 @@ fn e2e_info_selection_001_reports_selected_entries() {
     assert_eq!(
         json["smith2020machine"]["title"],
         "Machine Learning for Natural Language Processing"
+    );
+}
+
+#[test]
+fn e2e_info_include_type_001_reports_selected_entries_by_type() {
+    let output = run_bibtera(
+        &[
+            "info",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "--include-type",
+            "article",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let json: Value = serde_json::from_str(&stdout_text(&output)).expect("parse info json");
+    let object = json.as_object().expect("top-level info object");
+    assert!(!object.is_empty());
+
+    for entry in object.values() {
+        assert_eq!(entry["entry_type"], "article");
+    }
+}
+
+#[test]
+fn e2e_info_exclude_type_001_reports_selected_entries_by_type() {
+    let output = run_bibtera(
+        &[
+            "info",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "--exclude-type",
+            "article",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let json: Value = serde_json::from_str(&stdout_text(&output)).expect("parse info json");
+    let object = json.as_object().expect("top-level info object");
+    assert!(!object.is_empty());
+
+    for entry in object.values() {
+        assert_ne!(entry["entry_type"], "article");
+    }
+}
+
+#[test]
+fn e2e_info_type_selection_001_rejects_conflicting_type_options() {
+    let output = run_bibtera(
+        &[
+            "info",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "--include-type",
+            "article",
+            "--exclude-type",
+            "book",
+        ],
+        None,
+    );
+
+    assert!(!output.status.success());
+    assert!(
+        stderr_text(&output)
+            .contains("Cannot specify both --exclude-type and --include-type at the same time")
     );
 }
 

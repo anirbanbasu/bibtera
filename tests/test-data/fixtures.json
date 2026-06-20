@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-04-30-005",
+    "version": "v2026-06-20-001",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -114,6 +114,10 @@
         "selected_entry_keys": {
             "kind": "derived-expectation",
             "purpose": "Representative include and exclude key selections used for info command scenarios."
+        },
+        "selected_entry_types": {
+            "kind": "derived-expectation",
+            "purpose": "Representative include-type and exclude-type selections used for transform and info command scenarios."
         },
         "representative_random_subset_rule": {
             "kind": "selection-rule",

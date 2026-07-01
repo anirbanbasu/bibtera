@@ -11,7 +11,7 @@ repository = "https://github.com/anirbanbasu/bibtera"
 clap = { version = "4.5", features = ["derive"] }
 
 # Templating engine
-tera = "1.20"
+tera = "2.0"
 
 # BibTeX parsing
 biblatex = "0.12"

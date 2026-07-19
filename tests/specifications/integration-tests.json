@@ -223,6 +223,25 @@
             ]
         },
         {
+            "id": "IT-LATEX-SUBSTITUTION-BOUNDARY-001",
+            "objective": "Verify that latex_substitute honours the LaTeX command-token boundary rule so that control-word substitution keys do not corrupt longer commands sharing the same prefix.",
+            "requirements": [
+                "FUNC-4",
+                "IF-TPL-1",
+                "IF-TPL-1.1",
+                "IF-TPL-1.4"
+            ],
+            "fixtures": [
+                "inline_latex_substitution_boundary_bib",
+                "template_latex_substitute"
+            ],
+            "expected_outcomes": [
+                "A control-word key such as \\L does not match inside a longer command such as \\LaTeX, which is left unsubstituted.",
+                "A control-word key immediately followed by a non-letter character is still substituted.",
+                "A control-symbol key with a trailing argument letter, such as \\\"o, still matches when followed by further letters."
+            ]
+        },
+        {
             "id": "IT-TEMPLATE-ENGINE-DEFAULT-001",
             "objective": "Verify that template engine default initialisation does not silently degrade and still exposes required helper functionality.",
             "requirements": [

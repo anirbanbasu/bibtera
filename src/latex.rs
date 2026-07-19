@@ -112,6 +112,28 @@ pub fn substitute_latex_to_text(input: &str, substitutions: &SubstitutionMap) ->
     substitute_latex_to_text_with_ordered(input, &ordered)
 }
 
+/// Determine whether a substitution key is a LaTeX control word, i.e. a
+/// backslash followed only by ASCII letters (such as `\ss` or `\L`), as opposed
+/// to a control symbol with an argument (such as `\"o`).
+fn is_control_word_key(key: &str) -> bool {
+    match key.strip_prefix('\\') {
+        Some(rest) => !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_alphabetic()),
+        None => false,
+    }
+}
+
+/// Check that a candidate match respects the LaTeX command-token boundary rule
+/// (IF-TPL-1.4): a control-word key must not be followed by an ASCII letter,
+/// otherwise it would match a mere prefix of a longer command such as `\LaTeX`.
+fn matches_at_command_boundary(current: &str, from: &str) -> bool {
+    current.starts_with(from)
+        && !(is_control_word_key(from)
+            && current
+                .as_bytes()
+                .get(from.len())
+                .is_some_and(|byte| byte.is_ascii_alphabetic()))
+}
+
 fn apply_substitutions(input: &str, ordered_substitutions: &[(String, String)]) -> String {
     let mut output = String::with_capacity(input.len());
     let mut index = 0;
@@ -121,7 +143,7 @@ fn apply_substitutions(input: &str, ordered_substitutions: &[(String, String)]) 
 
         if let Some((matched, replacement)) = ordered_substitutions
             .iter()
-            .find(|(from, _)| current.starts_with(from.as_str()))
+            .find(|(from, _)| matches_at_command_boundary(current, from))
         {
             output.push_str(replacement);
             index += matched.len();
@@ -275,6 +297,61 @@ mod tests {
         );
 
         assert_eq!(output, "böld and italiéc text");
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_preserves_commands_sharing_a_prefix_with_mapped_commands() {
+        let substitutions =
+            load_default_substitution_map().expect("default substitution map should parse");
+
+        assert_eq!(
+            substitute_latex_to_text("\\LaTeX", &substitutions),
+            "\\LaTeX"
+        );
+        assert_eq!(
+            substitute_latex_to_text("\\omega", &substitutions),
+            "\\omega"
+        );
+        assert_eq!(
+            substitute_latex_to_text("\\theta", &substitutions),
+            "\\theta"
+        );
+        assert_eq!(
+            substitute_latex_to_text("\\label{fig1}", &substitutions),
+            "\\label{fig1}"
+        );
+        assert_eq!(
+            substitute_latex_to_text("\\aegis", &substitutions),
+            "\\aegis"
+        );
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_substitutes_control_words_at_command_boundaries() {
+        let substitutions =
+            load_default_substitution_map().expect("default substitution map should parse");
+
+        assert_eq!(substitute_latex_to_text("wei\\ss", &substitutions), "weiß");
+        assert_eq!(
+            substitute_latex_to_text("{\\L}ukasiewicz", &substitutions),
+            "{Ł}ukasiewicz"
+        );
+        assert_eq!(
+            substitute_latex_to_text("\\o, \\O.", &substitutions),
+            "ø, Ø."
+        );
+    }
+
+    #[test]
+    fn test_substitute_latex_to_text_control_symbol_keys_allow_following_letters() {
+        let substitutions =
+            load_default_substitution_map().expect("default substitution map should parse");
+
+        assert_eq!(substitute_latex_to_text("\\\"orn", &substitutions), "örn");
+        assert_eq!(
+            substitute_latex_to_text("\\'etude", &substitutions),
+            "étude"
+        );
     }
 
     #[test]

@@ -24,3 +24,5 @@ target
 tmp
 examples/output/
 .env
+
+.claude/*

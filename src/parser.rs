@@ -34,6 +34,9 @@ pub enum ParseError {
     DirectoryError(String),
 }
 
+/// BibTeX fields exposed as top-level template context keys rather than through the `fields` map.
+pub const TOP_LEVEL_FIELD_KEYS: [&str; 3] = ["author", "title", "year"];
+
 /// Represents a single BibTeX entry with its metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BibTeXEntry {
@@ -314,7 +317,7 @@ impl BibTeXParser {
         // Build fields map with remaining fields
         let mut fields = HashMap::new();
         for (k, v) in all_fields {
-            if k != "author" && k != "title" && k != "year" {
+            if !TOP_LEVEL_FIELD_KEYS.contains(&k.as_str()) {
                 let mut value = Self::format_chunks_preserving_math_syntax(
                     &v,
                     raw_fields.and_then(|fields| fields.get(&k).map(String::as_str)),

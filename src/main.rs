@@ -19,7 +19,10 @@ use bibtera::utils;
 
 fn main() {
     let cli = Cli::parse();
-    let verbose = matches!(&cli.command, Commands::Transform(args) if args.verbose);
+    let verbose = match &cli.command {
+        Commands::Transform(args) => args.verbose,
+        Commands::Info(args) => args.verbose,
+    };
 
     match run(cli) {
         Ok(_) => process::exit(0),
@@ -296,6 +299,10 @@ fn confirm_overwrite(path: &std::path::Path) -> Result<bool> {
 }
 
 fn run_info(config: InfoConfig) -> Result<()> {
+    if config.verbose {
+        eprintln!("Configuration: {:?}", config);
+    }
+
     if let Some(input) = &config.input {
         let entries = BibTeXParser::parse_file(input).context("Failed to parse BibTeX file")?;
         let has_explicit_selection = config.filter.has_explicit_selection();
@@ -308,7 +315,11 @@ fn run_info(config: InfoConfig) -> Result<()> {
             })
             .collect::<Vec<_>>();
 
-        if has_explicit_selection && !selected.is_empty() {
+        if has_explicit_selection {
+            if selected.is_empty() {
+                eprintln!("Warning: The specified selection matched no entries.");
+            }
+
             let mut by_key = BTreeMap::new();
             for entry in selected {
                 by_key.insert(&entry.key, entry);
@@ -337,7 +348,7 @@ fn default_entry_type_field_map() -> BTreeMap<String, BTreeMap<String, String>> 
         (
             "article",
             vec![
-                "author", "title", "journal", "year", "volume", "number", "pages",
+                "author", "title", "journal", "year", "month", "volume", "number", "pages",
             ],
         ),
         (
@@ -348,33 +359,50 @@ fn default_entry_type_field_map() -> BTreeMap<String, BTreeMap<String, String>> 
                 "title",
                 "publisher",
                 "year",
+                "month",
                 "address",
                 "edition",
             ],
         ),
         (
             "inproceedings",
-            vec!["author", "title", "booktitle", "year", "pages", "publisher"],
+            vec![
+                "author",
+                "title",
+                "booktitle",
+                "year",
+                "month",
+                "pages",
+                "publisher",
+            ],
         ),
         (
             "incollection",
-            vec!["author", "title", "booktitle", "publisher", "year", "pages"],
+            vec![
+                "author",
+                "title",
+                "booktitle",
+                "publisher",
+                "year",
+                "month",
+                "pages",
+            ],
         ),
         (
             "phdthesis",
-            vec!["author", "title", "school", "year", "address"],
+            vec!["author", "title", "school", "year", "month", "address"],
         ),
         (
             "mastersthesis",
-            vec!["author", "title", "school", "year", "address"],
+            vec!["author", "title", "school", "year", "month", "address"],
         ),
         (
             "techreport",
-            vec!["author", "title", "institution", "year", "number"],
+            vec!["author", "title", "institution", "year", "month", "number"],
         ),
         (
             "misc",
-            vec!["author", "title", "howpublished", "year", "note"],
+            vec!["author", "title", "howpublished", "year", "month", "note"],
         ),
     ];
 
@@ -427,10 +455,13 @@ fn template_available_fields_for_type(fields: &[&str]) -> BTreeMap<String, Strin
         "array<string>".to_string(),
     );
     map.insert("fields".to_string(), "map<string,string>".to_string());
-    map.insert("fields.month".to_string(), "string".to_string());
 
-    // Known type-specific BibTeX fields exposed under `fields`.
+    // Known type-specific BibTeX fields exposed under `fields`. The fields
+    // exposed as top-level context keys are never available under `fields`.
     for field in BTreeSet::from_iter(fields.iter().copied()) {
+        if bibtera::parser::TOP_LEVEL_FIELD_KEYS.contains(&field) {
+            continue;
+        }
         map.insert(format!("fields.{}", field), "string".to_string());
     }
 
@@ -445,16 +476,26 @@ mod tests {
     fn test_default_entry_type_field_map() {
         let map = default_entry_type_field_map();
         assert!(map.contains_key("article"));
-        assert!(
-            map.get("article")
-                .expect("article map")
-                .contains_key("fields.author")
-        );
-        assert!(
-            map.get("article")
-                .expect("article map")
-                .contains_key("author_parts")
-        );
+
+        let article = map.get("article").expect("article map");
+        assert!(article.contains_key("author_parts"));
+        assert!(article.contains_key("authors"));
+        assert!(article.contains_key("title"));
+        assert!(article.contains_key("year"));
+        assert!(article.contains_key("fields.journal"));
+        assert!(article.contains_key("fields.month"));
+
+        // These are exposed as top-level context keys, never under `fields`.
+        for (entry_type, field_map) in &map {
+            for top_level_only in ["fields.author", "fields.title", "fields.year"] {
+                assert!(
+                    !field_map.contains_key(top_level_only),
+                    "{} must not advertise {}",
+                    entry_type,
+                    top_level_only
+                );
+            }
+        }
     }
 
     #[test]
@@ -493,6 +534,17 @@ mod tests {
             map.get("misc")
                 .expect("misc map")
                 .contains_key("fields.howpublished")
+        );
+        assert!(
+            !map.get("article")
+                .expect("article map")
+                .contains_key("fields.month"),
+            "fields.month must not be advertised when no entry of the type has a month field"
+        );
+        assert!(
+            !map.get("article")
+                .expect("article map")
+                .contains_key("fields.author")
         );
     }
 

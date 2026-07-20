@@ -111,13 +111,15 @@ Useful options are as follows.
 - `--exclude key1,key2,...`: Hide selected BibTeX entry keys from the info output.
 - `--include-type type1,type2,...`: Show info only for selected BibTeX entry types (for example, `article`, `inproceedings`, etc.).
 - `--exclude-type type1,type2,...`: Hide selected BibTeX entry types from the info output.
+- `-v, --verbose`: Enable verbose diagnostic output, including error cause chains.
 
 The output of `info` depends on whether an input file is provided and whether entries are selected through filters.
 
 - If entries are selected (through input and include/exclude filters), BibTera prints parsed key-value information for those entries.
-- If no entries are selected, BibTera prints a key-value overview of supported entry types and fields available to templates.
+- If filters are provided but match no entries, BibTera prints an empty map and a warning on standard error.
+- If no filters are provided, BibTera prints a key-value overview of supported entry types and fields available to templates.
 
-For instance, the output of `info` without an input BibTeX file displaying the available fields for the BibTeX entry type `@inproceedings`  looks like the following. Note that all `fields.*` are available for templating, but only a subset of them are guaranteed to be present for every entry of that type. Thus, `field.abstract` is not showed in the output below but it will be available if the BibTeX entry has the field specified.
+For instance, the output of `info` without an input BibTeX file displaying the available fields for the BibTeX entry type `@inproceedings` looks like the following. Note that all `fields.*` are available for templating, but only a subset of them are guaranteed to be present for every entry of that type. Thus, `fields.abstract` is not shown in the output below but it will be available if the BibTeX entry has the field specified. The `author`, `title` and `year` BibTeX fields are exposed only through the top-level `authors`/`author_parts`, `title` and `year` keys, never under `fields`.
 
 ```json
 "inproceedings": {
@@ -125,13 +127,10 @@ For instance, the output of `info` without an input BibTeX file displaying the a
     "authors": "array<string>",
     "entry_type": "string",
     "fields": "map<string,string>",
-    "fields.author": "string",
     "fields.booktitle": "string",
     "fields.month": "string",
     "fields.pages": "string",
     "fields.publisher": "string",
-    "fields.title": "string",
-    "fields.year": "string",
     "key": "string",
     "raw_bibtex": "string",
     "slugified_keywords": "array<string>",

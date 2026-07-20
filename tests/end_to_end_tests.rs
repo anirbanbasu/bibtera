@@ -1024,6 +1024,129 @@ fn e2e_info_type_selection_001_rejects_conflicting_type_options() {
 }
 
 #[test]
+fn e2e_info_field_map_accuracy_001_matches_template_context() {
+    let default_output = run_bibtera(&["info"], None);
+    assert!(default_output.status.success());
+
+    let input_output = run_bibtera(
+        &[
+            "info",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+        ],
+        None,
+    );
+    assert!(input_output.status.success());
+
+    for output in [&default_output, &input_output] {
+        let json: Value = serde_json::from_str(&stdout_text(output)).expect("parse info json");
+        for (entry_type, field_map) in json.as_object().expect("top-level info object") {
+            let field_map = field_map.as_object().expect("entry type field map");
+
+            for top_level_only in ["fields.author", "fields.title", "fields.year"] {
+                assert!(
+                    !field_map.contains_key(top_level_only),
+                    "{} must not advertise {}",
+                    entry_type,
+                    top_level_only
+                );
+            }
+
+            for top_level in ["authors", "author_parts", "title", "year"] {
+                assert!(
+                    field_map.contains_key(top_level),
+                    "{} must advertise top-level key {}",
+                    entry_type,
+                    top_level
+                );
+            }
+        }
+    }
+
+    // No entry in input_sample.bib has a month field, so the input-derived map
+    // must not advertise fields.month for any entry type.
+    let input_json: Value =
+        serde_json::from_str(&stdout_text(&input_output)).expect("parse info json");
+    for (entry_type, field_map) in input_json.as_object().expect("top-level info object") {
+        assert!(
+            !field_map
+                .as_object()
+                .expect("entry type field map")
+                .contains_key("fields.month"),
+            "{} must not advertise fields.month for a month-less input",
+            entry_type
+        );
+    }
+}
+
+#[test]
+fn e2e_info_empty_selection_001_reports_empty_map_with_warning() {
+    let output = run_bibtera(
+        &[
+            "info",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "--include",
+            "nosuchkey",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let json: Value = serde_json::from_str(&stdout_text(&output)).expect("parse info json");
+    assert!(
+        json.as_object().expect("top-level info object").is_empty(),
+        "expected an empty map, got: {}",
+        stdout_text(&output)
+    );
+    assert!(
+        stderr_text(&output).contains("matched no entries"),
+        "expected a no-match warning on stderr, got: {}",
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn e2e_info_verbose_001_surfaces_error_cause_chain() {
+    let malformed_dir = unique_test_dir("e2e_info_verbose");
+    fs::create_dir_all(&malformed_dir).expect("create malformed dir");
+    let malformed_bib = malformed_dir.join("malformed.bib");
+    fs::write(&malformed_bib, "this is not valid bibtex").expect("write malformed bib");
+    let malformed_path = malformed_bib.to_str().expect("malformed bib path");
+
+    let quiet = run_bibtera(&["info", "-i", malformed_path], None);
+    assert!(!quiet.status.success());
+    assert!(stderr_text(&quiet).contains("Failed to parse BibTeX file"));
+    assert!(
+        !stderr_text(&quiet).contains("Caused by:"),
+        "non-verbose info must not print the cause chain, got: {}",
+        stderr_text(&quiet)
+    );
+
+    let verbose = run_bibtera(&["info", "-i", malformed_path, "--verbose"], None);
+    assert!(!verbose.status.success());
+    assert!(stderr_text(&verbose).contains("Failed to parse BibTeX file"));
+    assert!(
+        stderr_text(&verbose).contains("Caused by:"),
+        "verbose info must print the cause chain, got: {}",
+        stderr_text(&verbose)
+    );
+    assert!(
+        stderr_text(&verbose).contains("Configuration:"),
+        "verbose info must echo the resolved configuration, got: {}",
+        stderr_text(&verbose)
+    );
+
+    let _ = fs::remove_dir_all(&malformed_dir);
+}
+
+#[test]
 fn e2e_info_large_dataset_001_reports_representative_selected_entries() {
     let output = run_bibtera(
         &[

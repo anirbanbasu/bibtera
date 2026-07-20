@@ -115,4 +115,8 @@ pub struct InfoArgs {
     /// Comma-separated BibTeX entry types to include
     #[arg(long = "include-type")]
     pub include_type: Option<String>,
+
+    /// Enable verbose diagnostic output, including error cause chains
+    #[arg(short, long)]
+    pub verbose: bool,
 }

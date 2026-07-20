@@ -228,6 +228,9 @@ pub struct InfoConfig {
     pub input: Option<String>,
     /// Include/exclude filtering
     pub filter: FilterConfig,
+    /// Verbose mode
+    #[serde(default)]
+    pub verbose: bool,
 }
 
 impl InfoConfig {
@@ -241,6 +244,7 @@ impl InfoConfig {
                 args.exclude_type,
                 args.include_type,
             )?,
+            verbose: args.verbose,
         };
 
         cfg.validate()?;

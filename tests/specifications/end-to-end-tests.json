@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-06-20-001",
+    "version": "v2026-07-20-001",
     "scope": "end-to-end",
     "description": "Scenario catalogue for CLI-level workflows and observable outcomes.",
     "required_fields": [
@@ -340,6 +340,56 @@
                 "With --include-type, output contains only selected entry types.",
                 "With --exclude-type, output excludes the specified entry types.",
                 "Supplying both --include-type and --exclude-type fails with an informative validation error."
+            ]
+        },
+        {
+            "id": "E2E-INFO-FIELD-MAP-ACCURACY-001",
+            "command": "info and info --input without entry selection",
+            "objective": "Verify that the advertised entry-type field maps match the context actually exposed to Tera templates.",
+            "requirements": [
+                "IF-CLI-2.1.1"
+            ],
+            "fixtures": [
+                "input_sample_bib"
+            ],
+            "expected_outcomes": [
+                "Neither the default map nor the input-derived map advertises fields.author, fields.title or fields.year.",
+                "The top-level authors, author_parts, title and year keys remain advertised for every entry type.",
+                "fields.month is only advertised for entry types that actually include a month field."
+            ]
+        },
+        {
+            "id": "E2E-INFO-EMPTY-SELECTION-001",
+            "command": "info --input with --include matching no entries",
+            "objective": "Verify that an explicit selection matching no entries produces an empty map and a warning instead of the unfiltered output.",
+            "requirements": [
+                "IF-CLI-2.3",
+                "IF-CLI-2.3.1"
+            ],
+            "fixtures": [
+                "input_sample_bib",
+                "nonmatching_selection_keys"
+            ],
+            "expected_outcomes": [
+                "The command exits successfully.",
+                "The standard output contains an empty JSON map.",
+                "A warning that the selection matched no entries is printed to standard error."
+            ]
+        },
+        {
+            "id": "E2E-INFO-VERBOSE-001",
+            "command": "info --input --verbose with malformed input",
+            "objective": "Verify that info verbose mode surfaces the underlying error cause chain.",
+            "requirements": [
+                "IF-CLI-2.4"
+            ],
+            "fixtures": [
+                "malformed_bibtex_input"
+            ],
+            "expected_outcomes": [
+                "The command exits with a failure status in both verbose and non-verbose modes.",
+                "Without --verbose, only the outermost error message is printed.",
+                "With --verbose, the error output includes the resolved configuration and the underlying cause chain."
             ]
         },
         {

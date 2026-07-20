@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-07-20-002",
+    "version": "v2026-07-20-003",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -106,6 +106,10 @@
         "malformed_bibtex_input": {
             "kind": "inline-data",
             "purpose": "Invalid BibTeX content used to verify immediate parse failure paths."
+        },
+        "nonmatching_selection_keys": {
+            "kind": "virtual-fixture",
+            "purpose": "Entry keys guaranteed to be absent from the input fixtures, used for empty-selection scenarios."
         },
         "missing_input_path": {
             "kind": "virtual-fixture",

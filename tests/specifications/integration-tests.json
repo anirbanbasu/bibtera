@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-06-20-001",
+    "version": "v2026-07-20-001",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -39,6 +39,38 @@
             "expected_outcomes": [
                 "Normalised author display values use a consistent representation.",
                 "Structured given-name and family-name parts are available for template rendering."
+            ]
+        },
+        {
+            "id": "IT-AUTHOR-NORMALISATION-002",
+            "objective": "Verify that author list splitting and name-part semantics follow BibTeX conventions for brace-protected literal names, case-insensitive separators, line-wrapped author fields, nobiliary particles and suffixes.",
+            "requirements": [
+                "FUNC-1.1",
+                "FUNC-1.1.1",
+                "FUNC-1.1.2"
+            ],
+            "fixtures": [
+                "inline_author_edge_forms"
+            ],
+            "expected_outcomes": [
+                "Brace-protected corporate names are treated as single literal authors and are never split at an embedded 'and'.",
+                "The author list separator is matched case-insensitively and across line-wrapped whitespace.",
+                "Nobiliary particles are exposed as part of the family-name part and suffixes are preserved in the normalised full name."
+            ]
+        },
+        {
+            "id": "IT-FIELD-WHITESPACE-001",
+            "objective": "Verify that line-wrapped BibTeX field values are flattened without gaining extra internal whitespace from source indentation.",
+            "requirements": [
+                "FUNC-1",
+                "FUNC-1.6"
+            ],
+            "fixtures": [
+                "inline_wrapped_field_values"
+            ],
+            "expected_outcomes": [
+                "Whitespace runs containing a line break collapse to a single space in template-visible field values.",
+                "Line-wrapped title and keyword values match their single-line equivalents."
             ]
         },
         {

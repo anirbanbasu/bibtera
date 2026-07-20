@@ -13,7 +13,7 @@ fn examples_dir() -> PathBuf {
 }
 
 fn temp_dir() -> PathBuf {
-    PathBuf::from(std::env::temp_dir()).join("bibtera_tests")
+    std::env::temp_dir().join("bibtera_tests")
 }
 
 fn unique_temp_file(stem: &str, extension: &str) -> PathBuf {
@@ -51,6 +51,48 @@ fn it_author_normalisation_001_normalises_supported_author_formats() {
     assert_eq!(entries[0].author_parts[0].first, "John");
     assert_eq!(entries[0].author_parts[0].last, "Doe");
     assert_eq!(entries[0].author_parts[1].full, "Jane Smith");
+}
+
+#[test]
+fn it_author_normalisation_002_follows_bibtex_name_conventions() {
+    let src = "@book{k1,\n  author = {{Barnes and Noble} and Doe, Jr., John AND\n            Jean de la Fontaine},\n  title = {T}\n}\n";
+
+    let entries = BibTeXParser::parse_str(src).expect("parse edge-form author source");
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+
+    assert_eq!(
+        entry.authors,
+        vec![
+            "Barnes and Noble".to_string(),
+            "John Doe, Jr.".to_string(),
+            "Jean de la Fontaine".to_string()
+        ]
+    );
+    assert_eq!(entry.author_parts[0].last, "Barnes and Noble");
+    assert_eq!(entry.author_parts[1].first, "John");
+    assert_eq!(entry.author_parts[1].last, "Doe");
+    assert_eq!(entry.author_parts[2].first, "Jean");
+    assert_eq!(entry.author_parts[2].last, "de la Fontaine");
+}
+
+#[test]
+fn it_field_whitespace_001_collapses_line_wrapped_field_values() {
+    let src = "@article{k1,\n  author = {Doe, John},\n  title = {A Very Long\n           Title Continued},\n  year = {2024},\n  keywords = {alpha beta,\n              gamma delta}\n}\n";
+
+    let entries = BibTeXParser::parse_str(src).expect("parse line-wrapped source");
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+
+    assert_eq!(entry.title, "A Very Long Title Continued");
+    assert_eq!(
+        entry.fields.get("keywords"),
+        Some(&"alpha beta, gamma delta".to_string())
+    );
+    assert_eq!(
+        entry.slugified_keywords,
+        vec!["alpha-beta".to_string(), "gamma-delta".to_string()]
+    );
 }
 
 #[test]

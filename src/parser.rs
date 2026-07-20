@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use biblatex::{Bibliography, Chunk, ChunksExt, RawBibliography, RawChunk};
+use biblatex::{Bibliography, Chunk, Person, RawBibliography, RawChunk, Type};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -447,46 +447,84 @@ impl BibTeXParser {
         original_value: Option<&str>,
     ) -> String {
         let mut output = String::new();
-        let mut prev_was_whitespace = false;
+        // Whitespace is buffered so that a run containing a line break, such
+        // as the newline and indentation of a line-wrapped BibTeX field value,
+        // collapses into a single separator space (FUNC-1.6).
+        let mut pending_whitespace = String::new();
+        let mut pending_has_line_break = false;
 
         for chunk in chunks {
             match &chunk.v {
                 Chunk::Normal(value) => {
-                    for mut ch in value.chars() {
-                        if ch == '\n' || ch == '\r' {
-                            if prev_was_whitespace {
-                                continue;
+                    for ch in value.chars() {
+                        if ch.is_whitespace() {
+                            pending_whitespace.push(ch);
+                            if ch == '\n' || ch == '\r' {
+                                pending_has_line_break = true;
                             }
-
-                            ch = ' ';
+                        } else {
+                            Self::flush_pending_whitespace(
+                                &mut output,
+                                &mut pending_whitespace,
+                                &mut pending_has_line_break,
+                            );
+                            output.push(ch);
                         }
-
-                        output.push(ch);
-                        prev_was_whitespace = ch.is_whitespace();
                     }
                 }
                 Chunk::Verbatim(value) => {
+                    Self::flush_pending_whitespace(
+                        &mut output,
+                        &mut pending_whitespace,
+                        &mut pending_has_line_break,
+                    );
                     output.push_str(value);
-                    prev_was_whitespace = value
-                        .chars()
-                        .last()
-                        .map(char::is_whitespace)
-                        .unwrap_or(false);
                 }
                 Chunk::Math(value) => {
+                    Self::flush_pending_whitespace(
+                        &mut output,
+                        &mut pending_whitespace,
+                        &mut pending_has_line_break,
+                    );
                     output.push('$');
                     output.push_str(value);
                     output.push('$');
-                    prev_was_whitespace = false;
                 }
             }
         }
+
+        Self::flush_pending_whitespace(
+            &mut output,
+            &mut pending_whitespace,
+            &mut pending_has_line_break,
+        );
 
         if let Some(original) = original_value {
             return Self::merge_original_math_segments(&output, original);
         }
 
         output
+    }
+
+    fn flush_pending_whitespace(
+        output: &mut String,
+        pending_whitespace: &mut String,
+        pending_has_line_break: &mut bool,
+    ) {
+        if pending_whitespace.is_empty() {
+            return;
+        }
+
+        if *pending_has_line_break {
+            if !output.ends_with(char::is_whitespace) {
+                output.push(' ');
+            }
+        } else {
+            output.push_str(pending_whitespace);
+        }
+
+        pending_whitespace.clear();
+        *pending_has_line_break = false;
     }
 
     fn merge_original_math_segments(formatted: &str, original: &str) -> String {
@@ -564,53 +602,108 @@ impl BibTeXParser {
         output.trim_matches('-').to_string()
     }
 
-    /// Parse author field (can be "Last, First" or "First Last" format)
+    /// Parse the author field into structured name parts, deferring to
+    /// biblatex's BibTeX name-list handling so that brace-protected literal
+    /// names, whitespace-wrapped separators and von/particle/suffix name
+    /// conventions are honoured (FUNC-1.1, FUNC-1.1.1, FUNC-1.1.2).
     fn parse_authors(authors: &[biblatex::Spanned<biblatex::Chunk>]) -> Vec<AuthorName> {
-        let mut result = Vec::new();
-        let authors_text = authors.format_verbatim();
+        let normalised = Self::normalise_and_separators(authors);
 
-        // Split by "and" to handle multiple authors
-        for author in authors_text.split(" and ") {
-            let author = author.trim();
-            if !author.is_empty() {
-                result.push(Self::normalise_author_name(author));
+        Vec::<Person>::from_chunks(&normalised)
+            .map(|persons| {
+                persons
+                    .iter()
+                    .map(Self::author_name_from_person)
+                    .filter(|author| !author.full.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Lowercase standalone name-separator tokens ("AND", "And") in normal
+    /// chunks so that the case-sensitive splitter in biblatex honours
+    /// BibTeX's case-insensitive separator rule (FUNC-1.1.1). Only tokens
+    /// delimited by whitespace on both sides are rewritten, and
+    /// brace-protected (verbatim) content is never touched.
+    fn normalise_and_separators(
+        chunks: &[biblatex::Spanned<Chunk>],
+    ) -> Vec<biblatex::Spanned<Chunk>> {
+        chunks
+            .iter()
+            .map(|chunk| match &chunk.v {
+                Chunk::Normal(value) => biblatex::Spanned::new(
+                    Chunk::Normal(Self::lowercase_separator_tokens(value)),
+                    chunk.span.clone(),
+                ),
+                _ => chunk.clone(),
+            })
+            .collect()
+    }
+
+    fn lowercase_separator_tokens(value: &str) -> String {
+        let mut result = String::with_capacity(value.len());
+        let mut token = String::new();
+        let mut token_preceded_by_whitespace = false;
+        let mut previous_was_whitespace = false;
+
+        for ch in value.chars() {
+            if ch.is_whitespace() {
+                if token_preceded_by_whitespace && token.eq_ignore_ascii_case("and") {
+                    result.push_str("and");
+                } else {
+                    result.push_str(&token);
+                }
+                token.clear();
+                result.push(ch);
+                previous_was_whitespace = true;
+            } else {
+                if token.is_empty() {
+                    token_preceded_by_whitespace = previous_was_whitespace;
+                }
+                token.push(ch);
+                previous_was_whitespace = false;
             }
         }
 
+        // A trailing token has no following whitespace, so it is never a
+        // separator and is appended unchanged.
+        result.push_str(&token);
         result
     }
 
     fn normalise_author_name(author: &str) -> AuthorName {
-        let trimmed = author.trim();
+        let chunks = vec![biblatex::Spanned::detached(Chunk::Normal(
+            author.to_string(),
+        ))];
 
-        if let Some((last, first)) = trimmed.split_once(',') {
-            let first = first.trim().to_string();
-            let last = last.trim().to_string();
-            let full = if first.is_empty() {
-                last.clone()
-            } else if last.is_empty() {
-                first.clone()
+        Self::author_name_from_person(&Person::parse(&chunks))
+    }
+
+    /// Map a biblatex person to the template-facing author parts. The name
+    /// prefix (nobiliary particle) belongs to the family name and a suffix
+    /// such as "Jr." is appended to the full name after a comma
+    /// (FUNC-1.1.2). Internal whitespace is collapsed so that line-wrapped
+    /// author fields do not leak indentation into name parts.
+    fn author_name_from_person(person: &Person) -> AuthorName {
+        let first = Self::collapse_internal_whitespace(&person.given_name);
+        let last =
+            Self::collapse_internal_whitespace(&format!("{} {}", person.prefix, person.name));
+        let suffix = Self::collapse_internal_whitespace(&person.suffix);
+
+        let mut full = Self::collapse_internal_whitespace(&format!("{} {}", first, last));
+        if !suffix.is_empty() {
+            full = if full.is_empty() {
+                suffix
             } else {
-                format!("{} {}", first, last)
-            };
-            return AuthorName { first, last, full };
-        }
-
-        let parts = trimmed.split_whitespace().collect::<Vec<_>>();
-        if parts.len() <= 1 {
-            let first = trimmed.to_string();
-            return AuthorName {
-                first: first.clone(),
-                last: String::new(),
-                full: first,
+                format!("{}, {}", full, suffix)
             };
         }
-
-        let last = parts.last().unwrap_or(&"").to_string();
-        let first = parts[..parts.len() - 1].join(" ");
-        let full = format!("{} {}", first, last).trim().to_string();
 
         AuthorName { first, last, full }
+    }
+
+    fn collapse_internal_whitespace(value: &str) -> String {
+        value.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 }
 
@@ -620,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_parse_authors_single() {
-        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+        let authors = BibTeXParser::parse_authors(&[biblatex::Spanned::zero(
             biblatex::Chunk::Normal("John Doe".to_string()),
         )]);
         assert_eq!(authors.len(), 1);
@@ -631,7 +724,7 @@ mod tests {
 
     #[test]
     fn test_parse_authors_multiple() {
-        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+        let authors = BibTeXParser::parse_authors(&[biblatex::Spanned::zero(
             biblatex::Chunk::Normal("John Doe and Jane Smith".to_string()),
         )]);
         assert_eq!(authors.len(), 2);
@@ -640,13 +733,103 @@ mod tests {
 
     #[test]
     fn test_parse_authors_last_first() {
-        let authors = BibTeXParser::parse_authors(&vec![biblatex::Spanned::zero(
+        let authors = BibTeXParser::parse_authors(&[biblatex::Spanned::zero(
             biblatex::Chunk::Normal("Doe, John".to_string()),
         )]);
         assert_eq!(authors.len(), 1);
         assert_eq!(authors[0].first, "John");
         assert_eq!(authors[0].last, "Doe");
         assert_eq!(authors[0].full, "John Doe");
+    }
+
+    #[test]
+    fn test_format_chunks_collapses_line_wrapped_whitespace() {
+        let chunks = vec![biblatex::Spanned::zero(biblatex::Chunk::Normal(
+            "A Very Long\n         Title Continued".to_string(),
+        ))];
+        let formatted = BibTeXParser::format_chunks_preserving_math_syntax(&chunks, None);
+        assert_eq!(formatted, "A Very Long Title Continued");
+    }
+
+    #[test]
+    fn test_parse_line_wrapped_field_values_collapse_whitespace() {
+        let src = "@article{k1,\n  title = {A Very Long\n           Title Continued},\n  year = {2024},\n  keywords = {alpha beta,\n              gamma delta}\n}\n";
+
+        let entries = BibTeXParser::parse_str(src).expect("parse line-wrapped source");
+        let entry = &entries[0];
+        assert_eq!(entry.title, "A Very Long Title Continued");
+        assert_eq!(
+            entry.fields.get("keywords"),
+            Some(&"alpha beta, gamma delta".to_string())
+        );
+        assert_eq!(
+            entry.slugified_keywords,
+            vec!["alpha-beta".to_string(), "gamma-delta".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_parse_authors_brace_protected_corporate_name() {
+        let src = "@book{k1,\n  author = {{Barnes and Noble} and Doe, John},\n  title = {T}\n}\n";
+
+        let entries = BibTeXParser::parse_str(src).expect("parse corporate author source");
+        let entry = &entries[0];
+        assert_eq!(
+            entry.authors,
+            vec!["Barnes and Noble".to_string(), "John Doe".to_string()]
+        );
+        assert_eq!(entry.author_parts[0].last, "Barnes and Noble");
+        assert_eq!(entry.author_parts[1].first, "John");
+        assert_eq!(entry.author_parts[1].last, "Doe");
+    }
+
+    #[test]
+    fn test_parse_authors_case_insensitive_and_separator() {
+        let src = "@article{k1,\n  author = {Smith, A. AND Jones, B.},\n  title = {T}\n}\n";
+
+        let entries = BibTeXParser::parse_str(src).expect("parse uppercase separator source");
+        let entry = &entries[0];
+        assert_eq!(entry.authors.len(), 2);
+        assert_eq!(entry.author_parts[0].last, "Smith");
+        assert_eq!(entry.author_parts[1].last, "Jones");
+    }
+
+    #[test]
+    fn test_parse_authors_does_not_split_names_containing_and_letters() {
+        let src = "@article{k1,\n  author = {Sandy Anderson},\n  title = {T}\n}\n";
+
+        let entries = BibTeXParser::parse_str(src).expect("parse embedded-and source");
+        let entry = &entries[0];
+        assert_eq!(entry.authors, vec!["Sandy Anderson".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_authors_line_wrapped_separator() {
+        let src =
+            "@article{k1,\n  author = {Smith, A. and\n            Jones, B.},\n  title = {T}\n}\n";
+
+        let entries = BibTeXParser::parse_str(src).expect("parse line-wrapped author source");
+        let entry = &entries[0];
+        assert_eq!(entry.authors.len(), 2);
+        assert_eq!(entry.author_parts[0].last, "Smith");
+        assert_eq!(entry.author_parts[1].last, "Jones");
+        assert_eq!(entry.author_parts[1].first, "B.");
+    }
+
+    #[test]
+    fn test_normalise_author_name_last_suffix_first() {
+        let author = BibTeXParser::normalise_author_name("Doe, Jr., John");
+        assert_eq!(author.first, "John");
+        assert_eq!(author.last, "Doe");
+        assert_eq!(author.full, "John Doe, Jr.");
+    }
+
+    #[test]
+    fn test_normalise_author_name_particles_in_first_last_form() {
+        let author = BibTeXParser::normalise_author_name("Jean de la Fontaine");
+        assert_eq!(author.first, "Jean");
+        assert_eq!(author.last, "de la Fontaine");
+        assert_eq!(author.full, "Jean de la Fontaine");
     }
 
     #[test]

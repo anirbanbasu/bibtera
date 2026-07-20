@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-06-20-001",
+    "version": "v2026-07-20-001",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -54,6 +54,14 @@
         "inline_latex_substitution_cascade_bib": {
             "kind": "inline-data",
             "purpose": "Minimal BibTeX source containing tokens where one substitution output could match another key, used to verify non-cascading behaviour."
+        },
+        "inline_latex_substitution_boundary_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source containing longer commands sharing a prefix with mapped control-word keys, used to verify command-token boundary matching (requirement IF-TPL-1.4)."
+        },
+        "inline_latex_text_samples": {
+            "kind": "inline-data",
+            "purpose": "Minimal LaTeX text samples used to verify that the latex_substitute helper function and filter are available through a default-initialised template engine."
         },
         "inline_latex_math_mode_bib": {
             "kind": "inline-data",

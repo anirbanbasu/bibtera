@@ -68,8 +68,8 @@ Outside the `src` directory, we have:
     - `schemas/`: JSON Schema files for validating specification structures.
       - `scenario-catalogue.schema.json`: Schema for integration and end-to-end scenario files.
       - `fixture-catalogue.schema.json`: Schema for fixture catalogue files.
-    - `test-data/`: Shared machine-readable test fixture definitions.
-      - `fixtures.json`: Fixture catalogue referenced by integration and end-to-end specifications.
+  - `test-data/`: Shared machine-readable test fixture definitions.
+    - `fixtures.json`: Fixture catalogue referenced by integration and end-to-end specifications.
 - `.github/workflows/`: CI workflows for Rust checks, security scanning, dependency review and publishing.
 - `REQUIREMENTS.md`: Formal functional, non-functional, interface and test requirements.
 

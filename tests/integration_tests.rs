@@ -436,6 +436,41 @@ fn it_latex_substitution_cascade_001_does_not_reprocess_replacement_outputs() {
 }
 
 #[test]
+fn it_latex_substitution_boundary_001_respects_command_token_boundaries() {
+    let mut engine = TemplateEngine::new().expect("create engine");
+    let temp_file = unique_temp_file("it_latex_substitution_boundary", "md");
+    fs::create_dir_all(temp_dir()).ok();
+
+    let template_content = "{{ latex_substitute(value=title) }}";
+    fs::write(&temp_file, template_content).expect("write template");
+    engine.add_template(&temp_file).expect("add template");
+
+    let entry = bibtera::parser::BibTeXEntry::new(
+        "test-latex-substitution-boundary".to_string(),
+        "article".to_string(),
+        vec!["Doe, Jane".to_string()],
+        "The \\LaTeX{} companion of {\\L}ukasiewicz and B\\\"orn".to_string(),
+    );
+
+    let rendered = engine
+        .render_entry(
+            temp_file
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .expect("template stem"),
+            &entry,
+        )
+        .expect("render entry");
+
+    assert_eq!(
+        rendered,
+        "The \\LaTeX{} companion of {Ł}ukasiewicz and Börn"
+    );
+
+    fs::remove_file(&temp_file).ok();
+}
+
+#[test]
 fn it_single_mode_context_001_exposes_entries_collection_to_templates() {
     let src = r#"
 @article{k1,

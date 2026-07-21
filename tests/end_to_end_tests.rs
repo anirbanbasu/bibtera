@@ -247,8 +247,8 @@ fn e2e_transform_file_name_strategy_001_generates_expected_file_names() {
     assert!(slugify.status.success());
     assert!(slugify_dir.join("smith2020machine.md").exists());
 
-    let uuid7_dir = unique_test_dir("e2e_transform_uuid7");
-    let uuid7 = run_bibtera(
+    let uuid8_dir = unique_test_dir("e2e_transform_uuid8");
+    let uuid8 = run_bibtera(
         &[
             "transform",
             "-i",
@@ -257,7 +257,7 @@ fn e2e_transform_file_name_strategy_001_generates_expected_file_names() {
                 .to_str()
                 .expect("sample bib path"),
             "-o",
-            uuid7_dir.to_str().expect("output dir"),
+            uuid8_dir.to_str().expect("output dir"),
             "-t",
             examples_dir()
                 .join("template_entry.md")
@@ -266,7 +266,7 @@ fn e2e_transform_file_name_strategy_001_generates_expected_file_names() {
         ],
         None,
     );
-    assert!(uuid7.status.success());
+    assert!(uuid8.status.success());
 
     for key in [
         "smith2020machine",
@@ -276,12 +276,73 @@ fn e2e_transform_file_name_strategy_001_generates_expected_file_names() {
         "alice2022blog",
         "carol2020thesis",
     ] {
-        let expected = utils::generate_output_filename(key, FileNameStrategy::Uuid7, "md");
-        assert!(uuid7_dir.join(expected).exists());
+        let expected = utils::generate_output_filename(key, FileNameStrategy::Uuid8, "md");
+        assert!(uuid8_dir.join(expected).exists());
     }
 
     let _ = fs::remove_dir_all(&slugify_dir);
-    let _ = fs::remove_dir_all(&uuid7_dir);
+    let _ = fs::remove_dir_all(&uuid8_dir);
+}
+
+#[test]
+fn e2e_transform_file_name_collision_001_disambiguates_colliding_slugified_keys() {
+    let fixture_dir = unique_test_dir("e2e_transform_file_name_collision");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let input_path = fixture_dir.join("input_colliding_keys.bib");
+    fs::write(
+        &input_path,
+        concat!(
+            "@article{proj.a2026,\n",
+            "  title = {Alpha},\n",
+            "  author = {Doe, John},\n",
+            "  year = {2026}\n",
+            "}\n",
+            "\n",
+            "@article{proj:a2026,\n",
+            "  title = {Beta},\n",
+            "  author = {Smith, Jane},\n",
+            "  year = {2026}\n",
+            "}\n"
+        ),
+    )
+    .expect("write colliding-keys input bib");
+
+    let template_path = fixture_dir.join("template_title.md");
+    fs::write(&template_path, "{{ title }}\n").expect("write title template");
+
+    let output_dir = unique_test_dir("e2e_transform_file_name_collision_output");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input_path.to_str().expect("input path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+        ],
+        None,
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+    assert!(
+        stderr_text(&output).to_lowercase().contains("collision"),
+        "{}",
+        stderr_text(&output)
+    );
+
+    let first =
+        fs::read_to_string(output_dir.join("proj_a2026.md")).expect("read first colliding file");
+    let second = fs::read_to_string(output_dir.join("proj_a2026-2.md"))
+        .expect("read disambiguated second colliding file");
+    assert!(first.contains("Alpha"));
+    assert!(second.contains("Beta"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&output_dir);
 }
 
 #[test]

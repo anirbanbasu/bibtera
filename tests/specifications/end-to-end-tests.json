@@ -82,8 +82,25 @@
                 "expected_file_names"
             ],
             "expected_outcomes": [
-                "The uuid7 strategy generates stable, valid file names for the fixture expectations.",
+                "The uuid8 strategy generates stable, valid file names for the fixture expectations.",
                 "The slugify strategy generates valid file names derived from entry keys."
+            ]
+        },
+        {
+            "id": "E2E-TRANSFORM-FILE-NAME-COLLISION-001",
+            "command": "transform --file-name-strategy slugify",
+            "objective": "Verify that entries whose keys collide under a naming strategy produce disambiguated file names instead of silently overwriting one another within the same run.",
+            "requirements": [
+                "FUNC-2.1.3"
+            ],
+            "fixtures": [
+                "inline_colliding_slugify_keys_bib",
+                "expected_file_names"
+            ],
+            "expected_outcomes": [
+                "Two entries whose keys slugify to the same stem produce distinct output files, the second suffixed with -2.",
+                "A warning identifying the colliding entry key is printed to stderr.",
+                "Neither entry's rendered content is lost or overwritten by the other."
             ]
         },
         {

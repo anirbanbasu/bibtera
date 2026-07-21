@@ -224,15 +224,29 @@ fn render_entries(
         Some(pb)
     };
 
+    // Tracks filenames already produced this run so that distinct entries
+    // whose keys collide under the naming strategy (FUNC-2.1) are
+    // disambiguated instead of silently overwriting one another.
+    let mut used_filenames: BTreeSet<String> = BTreeSet::new();
+
     // Sequential processing keeps output order predictable based on input order.
     for entry in entries {
         stats.entries_processed += 1;
 
-        let filename = utils::generate_output_filename(
+        let generated_filename = utils::generate_output_filename(
             &entry.key,
             config.file_name_strategy,
             &template_extension,
         );
+        let filename = utils::disambiguate_filename(&generated_filename, &used_filenames);
+        if filename != generated_filename {
+            eprintln!(
+                "Warning: Output filename collision for entry '{}': '{}' already used this run, writing '{}' instead",
+                entry.key, generated_filename, filename
+            );
+        }
+        used_filenames.insert(filename.clone());
+
         let output_path = PathBuf::from(&config.output).join(&filename);
 
         if config.verbose {

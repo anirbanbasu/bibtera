@@ -21,9 +21,9 @@ pub enum ConfigError {
 /// Output filename strategy
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum FileNameStrategy {
-    /// UUID7 derived from SHAKE-128 output bytes
+    /// UUIDv8 (RFC 9562 custom profile) derived from SHAKE-128 output bytes
     #[default]
-    Uuid7,
+    Uuid8,
     /// Slugify the key by replacing non-alphanumeric characters with underscores
     Slugify,
 }
@@ -31,7 +31,7 @@ pub enum FileNameStrategy {
 impl From<CliFileNameStrategy> for FileNameStrategy {
     fn from(value: CliFileNameStrategy) -> Self {
         match value {
-            CliFileNameStrategy::Uuid7 => Self::Uuid7,
+            CliFileNameStrategy::Uuid8 => Self::Uuid8,
             CliFileNameStrategy::Slugify => Self::Slugify,
         }
     }

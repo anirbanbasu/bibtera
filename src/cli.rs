@@ -31,8 +31,8 @@ pub enum Commands {
 /// File naming strategy for generated output files
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum FileNameStrategy {
-    /// UUID7 derived from SHAKE-128 hash bytes
-    Uuid7,
+    /// UUIDv8 (RFC 9562 custom profile) derived from SHAKE-128 hash bytes
+    Uuid8,
     /// Replace non-alphanumeric key characters with underscores
     Slugify,
 }
@@ -77,7 +77,7 @@ pub struct TransformArgs {
     pub overwrite: bool,
 
     /// Output filename generation strategy, which has no effect when `--single` is specified
-    #[arg(long, value_enum, default_value_t = FileNameStrategy::Uuid7)]
+    #[arg(long, value_enum, default_value_t = FileNameStrategy::Uuid8)]
     pub file_name_strategy: FileNameStrategy,
 
     /// Render all selected entries in a single output file via the template `entries` variable, where the output filename is derived from the input filename and the template filename

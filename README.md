@@ -75,8 +75,10 @@ Execution and safety options include the following.
 
 There is the following file naming option.
 
-- `--file-name-strategy uuid7` (default): Stable, unique names derived from entry keys.
+- `--file-name-strategy uuid8` (default): Stable, hash-derived names using a UUIDv8 (RFC 9562 custom profile) representation of a SHAKE-128 hash of the entry key.
 - `--file-name-strategy slugify`: Human-readable names derived from entry keys.
+
+If two entries produce the same file name under the selected strategy, BibTera disambiguates the later one with a numeric suffix (e.g. `-2`) and prints a warning, rather than silently overwriting the earlier file.
 
 Also, a single-output mode.
 

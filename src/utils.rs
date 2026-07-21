@@ -277,15 +277,52 @@ pub fn relative_path<P1: AsRef<Path>, P2: AsRef<Path>>(from: P1, to: P2) -> Path
 /// Generate output filename from a BibTeX key using the requested strategy.
 pub fn generate_output_filename(key: &str, strategy: FileNameStrategy, extension: &str) -> String {
     let stem = match strategy {
-        FileNameStrategy::Uuid7 => uuid7_from_key(key),
+        FileNameStrategy::Uuid8 => uuid8_from_key(key),
         FileNameStrategy::Slugify => slugify_key(key),
     };
 
     format!("{}.{}", stem, extension)
 }
 
-/// Build a UUID7 string from 16 bytes sourced from SHAKE-128(key).
-fn uuid7_from_key(key: &str) -> String {
+/// Disambiguate `filename` against the set of filenames already produced
+/// earlier in the same run, so that distinct entries whose keys hash or
+/// slugify to the same name (FUNC-2.1) never collide within a single run.
+///
+/// If `filename` is not in `used`, it is returned unchanged. Otherwise a
+/// numeric suffix (`-2`, `-3`, ...) is inserted before the extension until a
+/// name outside `used` is found.
+pub fn disambiguate_filename(filename: &str, used: &std::collections::BTreeSet<String>) -> String {
+    if !used.contains(filename) {
+        return filename.to_string();
+    }
+
+    let (stem, ext) = match filename.rsplit_once('.') {
+        Some((stem, ext)) => (stem, Some(ext)),
+        None => (filename, None),
+    };
+
+    let mut counter: u32 = 2;
+    loop {
+        let candidate = match ext {
+            Some(ext) => format!("{}-{}.{}", stem, counter, ext),
+            None => format!("{}-{}", stem, counter),
+        };
+        if !used.contains(&candidate) {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
+/// Build a UUIDv8 (RFC 9562 custom profile) string from 16 bytes sourced from
+/// SHAKE-128(key).
+///
+/// UUIDv8 is used, rather than v7, because the 128 bits are entirely
+/// hash-derived rather than containing a Unix-millisecond timestamp as v7
+/// requires: labelling this content as v7 would misrepresent it as
+/// time-ordered. The hash-based construction is deliberately kept so that the
+/// same key always yields the same file name across runs.
+fn uuid8_from_key(key: &str) -> String {
     let mut hasher = Shake128::default();
     hasher.update(key.as_bytes());
 
@@ -293,8 +330,8 @@ fn uuid7_from_key(key: &str) -> String {
     let mut bytes = [0u8; 16];
     reader.read(&mut bytes);
 
-    // Apply UUIDv7 version and RFC4122 variant bits.
-    bytes[6] = (bytes[6] & 0x0f) | 0x70;
+    // Apply UUIDv8 version and RFC4122 variant bits.
+    bytes[6] = (bytes[6] & 0x0f) | 0x80;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
 
     Uuid::from_bytes(bytes).hyphenated().to_string()
@@ -586,9 +623,50 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_output_filename_uuid7() {
-        let name = generate_output_filename("test-key", FileNameStrategy::Uuid7, "txt");
+    fn test_generate_output_filename_uuid8() {
+        let name = generate_output_filename("test-key", FileNameStrategy::Uuid8, "txt");
         assert!(name.ends_with(".txt"));
         assert_eq!(name.matches('-').count(), 4);
+    }
+
+    #[test]
+    fn test_generate_output_filename_uuid8_has_version_and_variant_bits() {
+        let name = generate_output_filename("test-key", FileNameStrategy::Uuid8, "txt");
+        let stem = name.strip_suffix(".txt").expect("stem");
+        assert_eq!(stem.chars().nth(14), Some('8'), "version nibble: {stem}");
+        let variant_nibble = stem.chars().nth(19).expect("variant nibble");
+        assert!(
+            matches!(variant_nibble, '8' | '9' | 'a' | 'b'),
+            "variant nibble: {stem}"
+        );
+    }
+
+    #[test]
+    fn test_disambiguate_filename_returns_unchanged_when_not_seen() {
+        let used = std::collections::BTreeSet::new();
+        assert_eq!(disambiguate_filename("entry.md", &used), "entry.md");
+    }
+
+    #[test]
+    fn test_disambiguate_filename_appends_counter_before_extension() {
+        let mut used = std::collections::BTreeSet::new();
+        used.insert("entry.md".to_string());
+        assert_eq!(disambiguate_filename("entry.md", &used), "entry-2.md");
+    }
+
+    #[test]
+    fn test_disambiguate_filename_skips_already_used_counters() {
+        let mut used = std::collections::BTreeSet::new();
+        used.insert("entry.md".to_string());
+        used.insert("entry-2.md".to_string());
+        used.insert("entry-3.md".to_string());
+        assert_eq!(disambiguate_filename("entry.md", &used), "entry-4.md");
+    }
+
+    #[test]
+    fn test_disambiguate_filename_handles_missing_extension() {
+        let mut used = std::collections::BTreeSet::new();
+        used.insert("entry".to_string());
+        assert_eq!(disambiguate_filename("entry", &used), "entry-2");
     }
 }

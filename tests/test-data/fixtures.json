@@ -127,6 +127,10 @@
             "kind": "derived-expectation",
             "purpose": "Expected file names for supported naming strategies for the selected input fixture set."
         },
+        "inline_colliding_slugify_keys_bib": {
+            "kind": "inline-data",
+            "purpose": "Minimal BibTeX source with two distinct keys (proj.a2026, proj:a2026) that slugify to the same stem, used to verify per-run file name collision disambiguation."
+        },
         "expected_single_mode_name": {
             "kind": "derived-expectation",
             "purpose": "Expected single-output file name derived from the input and template file stems."

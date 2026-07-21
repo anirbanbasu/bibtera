@@ -185,9 +185,12 @@ pub fn format_ordered_list(items: &[String]) -> String {
 /// if content was removed.
 ///
 /// Truncation happens on character boundaries, so multi-byte UTF-8 content
-/// is safe, and the result never exceeds `max_len` characters.
+/// is safe, and the result never exceeds `max_len` characters. At most
+/// `max_len + 1` characters are examined, so the cost is bounded by
+/// `max_len` rather than the input length.
 pub fn truncate(s: &str, max_len: usize) -> String {
-    if s.chars().count() <= max_len {
+    let exceeds_max = s.char_indices().nth(max_len).is_some();
+    if !exceeds_max {
         return s.to_string();
     }
 
@@ -195,8 +198,12 @@ pub fn truncate(s: &str, max_len: usize) -> String {
         return ".".repeat(max_len);
     }
 
-    let prefix = s.chars().take(max_len - 3).collect::<String>();
-    format!("{}...", prefix)
+    let prefix_end = s
+        .char_indices()
+        .nth(max_len - 3)
+        .map(|(index, _)| index)
+        .unwrap_or(s.len());
+    format!("{}...", &s[..prefix_end])
 }
 
 /// Sanitize a string for use as a filename
@@ -497,6 +504,8 @@ mod tests {
         assert_eq!(truncate("hello", 10), "hello");
         assert_eq!(truncate("hello world", 5), "he...");
         assert_eq!(truncate("hello", 5), "hello");
+        assert_eq!(truncate("hello!", 6), "hello!");
+        assert_eq!(truncate("hello!!", 6), "hel...");
     }
 
     #[test]

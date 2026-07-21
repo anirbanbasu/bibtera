@@ -183,7 +183,10 @@ impl TransformConfig {
 
     /// Validate transform config.
     pub fn validate(&self) -> Result<()> {
-        if !self.input.to_ascii_lowercase().ends_with(".bib") {
+        if !Path::new(&self.input)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+        {
             return Err(ConfigError::Validation(format!(
                 "Input must be a .bib file: {}",
                 self.input
@@ -254,7 +257,10 @@ impl InfoConfig {
     /// Validate info config.
     pub fn validate(&self) -> Result<()> {
         if let Some(input) = &self.input {
-            if !input.to_ascii_lowercase().ends_with(".bib") {
+            if !Path::new(input)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+            {
                 return Err(ConfigError::Validation(format!(
                     "Input must be a .bib file: {}",
                     input

@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-07-20-001",
+    "version": "v2026-07-21-001",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -304,6 +304,20 @@
                 "Math regions in standard formats ($...$, $$...$$, \\(...\\), \\[...\\]) are consistently identified.",
                 "If internal math segment count mismatch is detected, the system falls back to safe content rather than silently dropping math regions.",
                 "Normal cases without mismatch continue to preserve original math content without diagnostic warnings."
+            ]
+        },
+        {
+            "id": "IT-DIRECTORY-TRAVERSAL-001",
+            "objective": "Verify that directory parsing rejects .bib files that resolve outside the scanned directory, for example through symbolic links.",
+            "requirements": [
+                "NON-FUNC-4"
+            ],
+            "fixtures": [
+                "symlinked_escape_directory"
+            ],
+            "expected_outcomes": [
+                "Directory parsing fails with an error identifying that the file resolves outside the permitted directory.",
+                "No entry content sourced from outside the scanned directory is returned."
             ]
         }
     ]

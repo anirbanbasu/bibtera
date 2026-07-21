@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-07-20-003",
+    "version": "v2026-07-21-001",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -142,6 +142,10 @@
         "representative_random_subset_rule": {
             "kind": "selection-rule",
             "purpose": "Documented rule for choosing a repeatable representative subset when exhaustive output checking is unnecessary."
+        },
+        "symlinked_escape_directory": {
+            "kind": "generated-state",
+            "purpose": "Runtime-created directory containing a symbolic link whose target resolves outside the scanned directory, used for path-traversal rejection scenarios."
         }
     }
 }

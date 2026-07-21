@@ -2,7 +2,6 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use bibtera::config::FilterConfig;
 use bibtera::parser::BibTeXParser;
@@ -12,17 +11,60 @@ fn examples_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples")
 }
 
-fn temp_dir() -> PathBuf {
-    std::env::temp_dir().join("bibtera_tests")
+fn unique_temp_file(stem: &str, extension: &str) -> PathBuf {
+    let (path, _file) = bibtera::utils::create_temp_file(
+        &format!("bibtera_tests_{}", stem),
+        &format!(".{}", extension),
+    )
+    .expect("create unique temp file");
+    path
 }
 
-fn unique_temp_file(stem: &str, extension: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+#[cfg(unix)]
+fn unique_temp_dir(label: &str) -> PathBuf {
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .expect("system time before unix epoch")
         .as_nanos();
+    let dir = std::env::temp_dir().join(format!(
+        "bibtera_tests_{}_{}_{}",
+        label,
+        std::process::id(),
+        nonce
+    ));
+    fs::create_dir_all(&dir).expect("create temp directory");
+    dir
+}
 
-    temp_dir().join(format!("{}_{}.{}", stem, nonce, extension))
+#[cfg(unix)]
+#[test]
+fn it_directory_traversal_001_rejects_bib_symlinks_escaping_the_scanned_directory() {
+    let scan_root = unique_temp_dir("traversal_root");
+    let outside_dir = unique_temp_dir("traversal_outside");
+
+    let outside_file = outside_dir.join("outside.bib");
+    fs::write(
+        &outside_file,
+        "@misc{outside2024,\n  title = {Outside}\n}\n",
+    )
+    .expect("write outside fixture");
+    fs::write(
+        scan_root.join("inside.bib"),
+        "@misc{inside2024,\n  title = {Inside}\n}\n",
+    )
+    .expect("write inside fixture");
+    std::os::unix::fs::symlink(&outside_file, scan_root.join("escape.bib"))
+        .expect("create escaping symlink");
+
+    let error = BibTeXParser::parse_directory(&scan_root, false)
+        .expect_err("directory parsing must reject the escaping symlink");
+    assert!(
+        format!("{error:#}").contains("outside the permitted directory"),
+        "unexpected error: {error:#}"
+    );
+
+    fs::remove_dir_all(&scan_root).ok();
+    fs::remove_dir_all(&outside_dir).ok();
 }
 
 #[test]
@@ -99,7 +141,6 @@ fn it_field_whitespace_001_collapses_line_wrapped_field_values() {
 fn it_author_normalisation_001_exposes_author_parts_to_templates() {
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_author_parts", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ author_parts[0].last }}, {{ author_parts[0].first }} - {{ title }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -145,7 +186,6 @@ fn it_nonstandard_fields_001_preserves_non_standard_fields_for_templates() {
 
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_non_standard_fields", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "Abstract: {{ fields.abstract }}\nKeywords: {{ fields.keywords }}\n";
     fs::write(&temp_file, template_content).expect("write template");
@@ -183,7 +223,6 @@ fn it_date_normalisation_001_normalises_month_and_day_values() {
 
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_date_normalisation", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "Month: {{ fields.month }}\nDay: {{ fields.day }}\n";
     fs::write(&temp_file, template_content).expect("write template");
@@ -220,7 +259,6 @@ fn it_slugified_keywords_001_exposes_slugified_keyword_array() {
 
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_slugified_keywords", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content =
         "First: {{ slugified_keywords[0] }}\nAll: {{ slugified_keywords | join(sep=\",\") }}\n";
@@ -259,7 +297,6 @@ fn it_raw_bibtex_001_exposes_raw_bibtex_field() {
 
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_raw_bibtex", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ raw_bibtex }}\n";
     fs::write(&temp_file, template_content).expect("write template");
@@ -336,7 +373,6 @@ fn it_filter_by_type_002_combines_key_and_type_constraints() {
 fn it_latex_substitution_math_mode_001_preserves_math_regions_for_templates() {
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_latex_math_mode", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ latex_substitute(value=title) }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -372,7 +408,6 @@ fn it_latex_substitution_math_mode_001_preserves_math_regions_for_templates() {
 fn it_latex_substitution_math_mode_002_preserves_real_default_map_tokens_in_math_regions() {
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_latex_math_mode_real_tokens", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ latex_substitute(value=title) }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -412,7 +447,6 @@ fn it_latex_substitution_math_mode_003_treats_unclosed_double_dollar_as_plain_te
     let mut engine =
         TemplateEngine::new_with_substitutions(Some(substitutions)).expect("create engine");
     let temp_file = unique_temp_file("it_latex_math_mode_unclosed_double_dollar", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ latex_substitute(value=title) }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -449,7 +483,6 @@ fn it_latex_substitution_cascade_001_does_not_reprocess_replacement_outputs() {
     let mut engine =
         TemplateEngine::new_with_substitutions(Some(substitutions)).expect("create engine");
     let temp_file = unique_temp_file("it_latex_substitution_cascade", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ latex_substitute(value=title) }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -481,7 +514,6 @@ fn it_latex_substitution_cascade_001_does_not_reprocess_replacement_outputs() {
 fn it_latex_substitution_boundary_001_respects_command_token_boundaries() {
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_latex_substitution_boundary", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "{{ latex_substitute(value=title) }}";
     fs::write(&temp_file, template_content).expect("write template");
@@ -528,7 +560,6 @@ fn it_single_mode_context_001_exposes_entries_collection_to_templates() {
 
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_entries_collection", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content =
         "Count: {{ entries | length }}\nKeys: {% for e in entries %}{{ e.key }} {% endfor %}\n";
@@ -568,7 +599,7 @@ fn it_single_mode_context_001_supports_combined_output_naming_inputs() {
     assert_eq!(entries.len(), 2);
 
     let mut engine = TemplateEngine::new().expect("create engine");
-    let temp_output_dir = temp_dir().join("single_mode_test");
+    let temp_output_dir = std::env::temp_dir().join("bibtera_tests_single_mode_test");
     fs::create_dir_all(&temp_output_dir).ok();
 
     let temp_template_file = temp_output_dir.join("mytemplate.md");
@@ -594,7 +625,6 @@ fn it_single_mode_context_001_supports_combined_output_naming_inputs() {
 fn it_error_surfacing_001_exposes_underlying_template_parser_errors() {
     let mut engine = TemplateEngine::new().expect("create engine");
     let temp_file = unique_temp_file("it_invalid_template_comment", "md");
-    fs::create_dir_all(temp_dir()).ok();
 
     let template_content = "<!-- {% alert(type=\"info\") %} -->\nHello\n<!-- {% end %} -->";
     fs::write(&temp_file, template_content).expect("write invalid template");

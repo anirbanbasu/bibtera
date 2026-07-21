@@ -175,7 +175,12 @@ impl BibTeXParser {
         Ok(parsed_entries)
     }
 
-    /// Parse all BibTeX files in a directory
+    /// Parse all BibTeX files in a directory.
+    ///
+    /// Every discovered file is read through [`crate::utils::safe_read`] with
+    /// the scanned directory as the permitted root, so a `.bib` file that
+    /// resolves outside the directory, for example through a symbolic link,
+    /// is rejected rather than followed (NON-FUNC-4).
     pub fn parse_directory<P: AsRef<Path>>(path: P, recursive: bool) -> Result<Vec<BibTeXEntry>> {
         let path = path.as_ref();
 
@@ -204,9 +209,12 @@ impl BibTeXParser {
             Self::collect_bib_files_flat(path)?
         };
 
-        // Parse each file and fail immediately if any file cannot be parsed.
+        // Parse each file and fail immediately if any file cannot be read
+        // within the scanned directory or cannot be parsed.
         for file in bib_files {
-            let file_entries = Self::parse_file(&file)
+            let content = crate::utils::safe_read(&file, path)
+                .with_context(|| format!("Failed to read BibTeX file: {}", file.display()))?;
+            let file_entries = Self::parse_str(&content)
                 .with_context(|| format!("Failed to parse BibTeX file: {}", file.display()))?;
             entries.extend(file_entries);
         }

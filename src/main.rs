@@ -236,7 +236,12 @@ fn render_entries(
         let output_path = PathBuf::from(&config.output).join(&filename);
 
         if config.verbose {
-            eprintln!("Processing: {} -> {}", entry.key, filename);
+            eprintln!(
+                "Processing: {} ({}) -> {}",
+                entry.key,
+                utils::truncate(&entry.title, 60),
+                filename
+            );
         }
 
         if config.dry_run {

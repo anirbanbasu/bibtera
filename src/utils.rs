@@ -13,21 +13,31 @@ use uuid::Uuid;
 
 use crate::config::FileNameStrategy;
 
-/// Securely read a file, preventing path traversal attacks
-pub fn safe_read<P: AsRef<Path>>(path: P) -> Result<String> {
+/// Read a file only if it resolves inside the permitted root directory.
+///
+/// Both the requested path and the permitted root are canonicalised before
+/// the containment check, so a path that escapes the root through `..`
+/// components or symbolic links is rejected rather than followed
+/// (NON-FUNC-4).
+pub fn safe_read<P: AsRef<Path>, R: AsRef<Path>>(path: P, allowed_root: R) -> Result<String> {
     let path = path.as_ref();
+    let allowed_root = allowed_root.as_ref();
 
-    // Get canonical path to prevent path traversal.
-    let canonical = path.canonicalize().context("Failed to resolve path")?;
+    let canonical = path
+        .canonicalize()
+        .context(format!("Failed to resolve path: {}", path.display()))?;
+    let root_canonical = allowed_root.canonicalize().context(format!(
+        "Failed to resolve permitted root directory: {}",
+        allowed_root.display()
+    ))?;
 
-    // Resolve parent to force normalisation and surface invalid paths.
-    if let Some(parent) = canonical.parent() {
-        let parent_canonical = parent
-            .canonicalize()
-            .context("Failed to resolve parent directory")?;
-
-        // Placeholder for an allowlist root check.
-        let _ = parent_canonical;
+    if !canonical.starts_with(&root_canonical) {
+        anyhow::bail!(
+            "Refusing to read {} because it resolves to {} outside the permitted directory {}",
+            path.display(),
+            canonical.display(),
+            root_canonical.display()
+        );
     }
 
     fs::read_to_string(&canonical).context(format!("Failed to read file: {}", path.display()))
@@ -82,17 +92,67 @@ pub fn join_path<P1: AsRef<Path>, P2: AsRef<Path>>(base: P1, child: P2) -> PathB
     base.as_ref().join(child.as_ref())
 }
 
-/// Create a temporary file
+/// Reject temp file name components that contain path separators, so that a
+/// prefix or suffix can never move the created file out of the temporary
+/// directory (NON-FUNC-4). Both `/` and `\` are rejected on every platform
+/// for consistent cross-platform behaviour.
+fn validate_temp_name_component(label: &str, value: &str) -> Result<()> {
+    if value.contains(['/', '\\']) {
+        anyhow::bail!(
+            "The temp file {} must not contain path separators: {}",
+            label,
+            value
+        );
+    }
+
+    Ok(())
+}
+
+/// Create a uniquely named temporary file in the system temporary directory.
+///
+/// The suffix is appended verbatim after the unique name component, so an
+/// extension such as `.txt` is preserved in the created file name. Neither
+/// the prefix nor the suffix may contain path separators, so the file is
+/// always created directly inside the temporary directory. The file is
+/// opened with `create_new` (exclusive creation), so an existing file is
+/// never truncated; on a name collision a different unique name is tried.
 pub fn create_temp_file(prefix: &str, suffix: &str) -> Result<(PathBuf, fs::File)> {
+    const MAX_ATTEMPTS: u32 = 1024;
+
+    validate_temp_name_component("prefix", prefix)?;
+    validate_temp_name_component("suffix", suffix)?;
+
     let temp_dir = std::env::temp_dir();
-    let stem_value = stem(Path::new(suffix)).unwrap_or_else(|| "file".to_string());
-    let filename = format!("{}_{}", prefix, stem_value);
-    let path = temp_dir.join(filename);
+    let pid = std::process::id();
 
-    let file = fs::File::create(&path)
-        .context(format!("Failed to create temp file: {}", path.display()))?;
+    for attempt in 0..MAX_ATTEMPTS {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let filename = format!("{}_{:x}_{:x}_{:x}{}", prefix, pid, nanos, attempt, suffix);
+        let path = temp_dir.join(filename);
 
-    Ok((path, file))
+        match fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => return Ok((path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(error)
+                    .context(format!("Failed to create temp file: {}", path.display()));
+            }
+        }
+    }
+
+    anyhow::bail!(
+        "Failed to create a unique temp file in {} after {} attempts",
+        temp_dir.display(),
+        MAX_ATTEMPTS
+    )
 }
 
 /// Format a list of strings as a bullet list
@@ -121,13 +181,29 @@ pub fn format_ordered_list(items: &[String]) -> String {
     result
 }
 
-/// Truncate a string to a maximum length, adding ellipsis if needed
+/// Truncate a string to a maximum number of characters, adding an ellipsis
+/// if content was removed.
+///
+/// Truncation happens on character boundaries, so multi-byte UTF-8 content
+/// is safe, and the result never exceeds `max_len` characters. At most
+/// `max_len + 1` characters are examined, so the cost is bounded by
+/// `max_len` rather than the input length.
 pub fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let exceeds_max = s.char_indices().nth(max_len).is_some();
+    if !exceeds_max {
         return s.to_string();
     }
 
-    format!("{}...", &s[..max_len.saturating_sub(3)])
+    if max_len <= 3 {
+        return ".".repeat(max_len);
+    }
+
+    let prefix_end = s
+        .char_indices()
+        .nth(max_len - 3)
+        .map(|(index, _)| index)
+        .unwrap_or(s.len());
+    format!("{}...", &s[..prefix_end])
 }
 
 /// Sanitize a string for use as a filename
@@ -251,6 +327,164 @@ fn slugify_key(key: &str) -> String {
 mod tests {
     use super::*;
 
+    fn unique_test_dir(label: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "bibtera_utils_{}_{}_{}",
+            label,
+            std::process::id(),
+            nanos
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        dir
+    }
+
+    #[test]
+    fn test_safe_read_allows_files_inside_the_permitted_root() {
+        let root = unique_test_dir("safe_read_inside");
+        let file = root.join("inside.bib");
+        fs::write(&file, "content").expect("write test file");
+
+        let read = safe_read(&file, &root).expect("read file inside root");
+        assert_eq!(read, "content");
+
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn test_safe_read_rejects_paths_outside_the_permitted_root() {
+        let root = unique_test_dir("safe_read_root");
+        let outside_dir = unique_test_dir("safe_read_outside");
+        let outside_file = outside_dir.join("outside.bib");
+        fs::write(&outside_file, "secret").expect("write outside file");
+
+        let error = safe_read(&outside_file, &root).expect_err("outside path must be rejected");
+        assert!(
+            format!("{error:#}").contains("outside the permitted directory"),
+            "unexpected error: {error:#}"
+        );
+
+        fs::remove_dir_all(&root).ok();
+        fs::remove_dir_all(&outside_dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_safe_read_rejects_symlinks_escaping_the_permitted_root() {
+        let root = unique_test_dir("safe_read_symlink_root");
+        let outside_dir = unique_test_dir("safe_read_symlink_target");
+        let target = outside_dir.join("target.bib");
+        fs::write(&target, "secret").expect("write symlink target");
+
+        let link = root.join("escape.bib");
+        std::os::unix::fs::symlink(&target, &link).expect("create symlink");
+
+        let error = safe_read(&link, &root).expect_err("escaping symlink must be rejected");
+        assert!(
+            format!("{error:#}").contains("outside the permitted directory"),
+            "unexpected error: {error:#}"
+        );
+
+        fs::remove_dir_all(&root).ok();
+        fs::remove_dir_all(&outside_dir).ok();
+    }
+
+    #[test]
+    fn test_create_temp_file_preserves_suffix_extension() {
+        let (path, _file) = create_temp_file("bibtera_suffix", ".txt").expect("create temp file");
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("temp file name");
+
+        assert!(name.starts_with("bibtera_suffix"), "name: {name}");
+        assert!(name.ends_with(".txt"), "name: {name}");
+
+        fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_create_temp_file_preserves_full_suffix_including_extension() {
+        let (path, _file) =
+            create_temp_file("bibtera_suffix", "_data.txt").expect("create temp file");
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("temp file name");
+
+        assert!(name.ends_with("_data.txt"), "name: {name}");
+
+        fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_create_temp_file_repeated_calls_do_not_collide_or_truncate() {
+        use std::io::Write as _;
+
+        let (first_path, mut first_file) =
+            create_temp_file("bibtera_collide", ".tmp").expect("create first temp file");
+        first_file
+            .write_all(b"original")
+            .expect("write first temp file");
+
+        let (second_path, _second_file) =
+            create_temp_file("bibtera_collide", ".tmp").expect("create second temp file");
+
+        assert_ne!(first_path, second_path);
+        assert_eq!(
+            fs::read_to_string(&first_path).expect("read first temp file"),
+            "original"
+        );
+
+        fs::remove_file(&first_path).ok();
+        fs::remove_file(&second_path).ok();
+    }
+
+    #[test]
+    fn test_create_temp_file_rejects_path_separators_in_prefix_and_suffix() {
+        for (prefix, suffix) in [
+            ("../escape", ".txt"),
+            ("/etc/bibtera", ".txt"),
+            ("bibtera", "/etc/passwd"),
+            ("bibtera", "..\\escape.txt"),
+        ] {
+            let error = create_temp_file(prefix, suffix)
+                .expect_err("separator-bearing components must be rejected");
+            assert!(
+                format!("{error:#}").contains("must not contain path separators"),
+                "unexpected error for ({prefix}, {suffix}): {error:#}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_create_temp_file_concurrent_calls_produce_distinct_paths() {
+        let handles = (0..8)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    create_temp_file("bibtera_concurrent", ".tmp")
+                        .expect("create temp file concurrently")
+                        .0
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let paths = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("join temp file thread"))
+            .collect::<Vec<_>>();
+        let unique = paths.iter().collect::<std::collections::BTreeSet<_>>();
+
+        assert_eq!(unique.len(), paths.len());
+
+        for path in &paths {
+            fs::remove_file(path).ok();
+        }
+    }
+
     #[test]
     fn test_extension() {
         assert_eq!(extension("file.txt"), Some("txt".to_string()));
@@ -270,6 +504,29 @@ mod tests {
         assert_eq!(truncate("hello", 10), "hello");
         assert_eq!(truncate("hello world", 5), "he...");
         assert_eq!(truncate("hello", 5), "hello");
+        assert_eq!(truncate("hello!", 6), "hello!");
+        assert_eq!(truncate("hello!!", 6), "hel...");
+    }
+
+    #[test]
+    fn test_truncate_non_ascii_input_is_safe() {
+        // Regression: byte-indexed slicing used to panic inside 'é'.
+        assert_eq!(truncate("héllo wörld", 5), "hé...");
+        assert_eq!(truncate("héllo", 5), "héllo");
+        assert_eq!(truncate("日本語のタイトル", 6), "日本語...");
+    }
+
+    #[test]
+    fn test_truncate_never_exceeds_requested_maximum() {
+        for max_len in 0..8 {
+            let result = truncate("héllo wörld", max_len);
+            assert!(
+                result.chars().count() <= max_len,
+                "truncate to {} produced {:?}",
+                max_len,
+                result
+            );
+        }
     }
 
     #[test]

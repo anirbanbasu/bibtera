@@ -235,7 +235,11 @@ impl BibTeXParser {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "bib") {
+            if path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+            {
                 files.push(path);
             }
         }
@@ -258,7 +262,11 @@ impl BibTeXParser {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "bib") {
+            if path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+            {
                 files.push(path);
             } else if path.is_dir() {
                 Self::collect_recursive(&path, files)?;

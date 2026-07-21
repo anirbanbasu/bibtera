@@ -67,6 +67,36 @@ fn it_directory_traversal_001_rejects_bib_symlinks_escaping_the_scanned_director
 }
 
 #[test]
+fn it_directory_extension_case_001_recognises_mixed_case_bib_extensions() {
+    let scan_root = unique_temp_dir("extension_case_root");
+
+    fs::write(
+        scan_root.join("lower.bib"),
+        "@misc{lower2024,\n  title = {Lower}\n}\n",
+    )
+    .expect("write lowercase fixture");
+    fs::write(
+        scan_root.join("upper.BIB"),
+        "@misc{upper2024,\n  title = {Upper}\n}\n",
+    )
+    .expect("write uppercase fixture");
+    fs::write(
+        scan_root.join("mixed.Bib"),
+        "@misc{mixed2024,\n  title = {Mixed}\n}\n",
+    )
+    .expect("write mixed-case fixture");
+
+    let entries =
+        BibTeXParser::parse_directory(&scan_root, false).expect("parse mixed-case directory");
+    let mut keys: Vec<_> = entries.iter().map(|entry| entry.key.clone()).collect();
+    keys.sort();
+
+    assert_eq!(keys, vec!["lower2024", "mixed2024", "upper2024"]);
+
+    fs::remove_dir_all(&scan_root).ok();
+}
+
+#[test]
 fn it_parse_sample_001_parses_sample_bib_fixture() {
     let sample_file = examples_dir().join("input_sample.bib");
     let entries = BibTeXParser::parse_file(&sample_file).expect("parse input_sample.bib");

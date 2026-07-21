@@ -180,6 +180,12 @@ Formatting commands such as `\textbf{...}` and nested forms such as `\textbf{bol
 > Some spacing and token-shape normalisation may occur upstream during BibTeX parsing, before template helpers are evaluated. As a result, exact whitespace and token boundaries in rendered output can vary with BibTeX authoring style and parser behaviour. Templates should avoid relying on fragile assumptions about exact inter-token spacing unless that spacing is explicitly encoded in the source data.
 > If spacing is semantically important in your output, encode it explicitly in the BibTeX source (for example, with explicit spacing commands) rather than relying on implicit inter-token whitespace.
 
+### HTML output and autoescaping
+
+BibTera registers templates with Tera by file stem, without their extension, so Tera's built-in HTML autoescaping never activates, regardless of the template's output format. This is intentional: BibTera's sole intended use case is generating non-HTML text output, such as Markdown, that may itself contain further Tera-like markup destined for a downstream static site generator such as [Zola](https://github.com/getzola/zola) to process (see the `{% raw %}...{% endraw %}` guidance above). Enabling autoescaping would corrupt that downstream markup as well as legitimate LaTeX control characters (`\`, `{`, `}`) in rendered content (see FUNC-6, FUNC-6.1 in [REQUIREMENTS.md](REQUIREMENTS.md)).
+
+If you write a template that produces HTML, you are responsible for escaping any field values that may contain `<`, `>`, `&`, or other HTML-significant characters yourself, for example with a custom Tera filter, before they are inserted into the output.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.

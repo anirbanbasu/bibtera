@@ -153,6 +153,17 @@ impl TemplateEngine {
     }
 
     /// Add a custom template file
+    ///
+    /// Templates are registered with Tera under their file stem, without the
+    /// original extension, so Tera's built-in HTML autoescaping never
+    /// activates regardless of the template's output format. This is
+    /// deliberate: BibTera's sole intended output is non-HTML text, such as
+    /// Markdown, which may itself embed further Tera-like markup destined for
+    /// a downstream processor such as Zola (see FUNC-6, FUNC-6.1 in
+    /// `REQUIREMENTS.md`). Autoescaping would corrupt that downstream markup
+    /// as well as legitimate LaTeX control characters (`\`, `{`, `}`) in
+    /// rendered content. Authors of templates that do produce HTML are
+    /// responsible for escaping HTML-significant characters themselves.
     pub fn add_template<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
 

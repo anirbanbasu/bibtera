@@ -12,8 +12,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use tera::{
-    Context as TeraContext, Error as TeraError, Filter as TeraFilter, Function as TeraFunction,
-    Tera, Value, from_value, to_value,
+    Context as TeraContext, Error as TeraError, Kwargs, State as TeraState, Tera, TeraResult, Value,
 };
 use thiserror::Error;
 
@@ -23,70 +22,30 @@ use crate::latex::{
 };
 use crate::parser::BibTeXEntry;
 
-#[derive(Clone)]
-struct LatexSubstituteFunction {
-    ordered_substitutions: Vec<(String, String)>,
-}
-
-impl LatexSubstituteFunction {
-    fn new(ordered_substitutions: Vec<(String, String)>) -> Self {
-        Self {
-            ordered_substitutions,
-        }
-    }
-}
-
-impl TeraFunction for LatexSubstituteFunction {
-    fn call(&self, args: &HashMap<String, Value>) -> tera::Result<Value> {
-        let input = extract_substitution_input(args)?;
-        let substituted =
-            substitute_latex_to_text_with_ordered(&input, &self.ordered_substitutions);
-        to_value(substituted).map_err(|error| TeraError::msg(error.to_string()))
-    }
-}
-
-#[derive(Clone)]
-struct LatexSubstituteFilter {
-    ordered_substitutions: Vec<(String, String)>,
-}
-
-impl LatexSubstituteFilter {
-    fn new(ordered_substitutions: Vec<(String, String)>) -> Self {
-        Self {
-            ordered_substitutions,
-        }
-    }
-}
-
-impl TeraFilter for LatexSubstituteFilter {
-    fn filter(&self, value: &Value, _args: &HashMap<String, Value>) -> tera::Result<Value> {
-        let input: String = from_value(value.clone())
-            .map_err(|_| TeraError::msg("latex_substitute filter expects a string value"))?;
-        let substituted =
-            substitute_latex_to_text_with_ordered(&input, &self.ordered_substitutions);
-        to_value(substituted).map_err(|error| TeraError::msg(error.to_string()))
-    }
-}
-
-fn extract_substitution_input(args: &HashMap<String, Value>) -> tera::Result<String> {
+fn extract_substitution_input(kwargs: &Kwargs) -> TeraResult<String> {
     for key in ["value", "text", "input"] {
-        if let Some(value) = args.get(key) {
-            return from_value(value.clone()).map_err(|_| {
-                TeraError::msg("latex_substitute expects the selected argument to be a string")
-            });
+        if let Some(value) = kwargs.get::<&str>(key)? {
+            return Ok(value.to_string());
         }
     }
 
-    if args.len() == 1
-        && let Some(value) = args.values().next()
-    {
-        return from_value(value.clone())
-            .map_err(|_| TeraError::msg("latex_substitute expects a single string argument"));
-    }
-
-    Err(TeraError::msg(
+    Err(TeraError::message(
         "latex_substitute expects one string argument via `value`, `text`, or `input`",
     ))
+}
+
+/// JSON-encode a value, mirroring the `json_encode` filter that shipped as a
+/// Tera built-in prior to Tera 2.0. Templates such as
+/// `examples/template_entry_single.json` rely on this filter to escape field
+/// values for embedding in JSON output.
+fn json_encode_filter(value: &Value, kwargs: Kwargs, _state: &TeraState) -> TeraResult<String> {
+    let pretty = kwargs.get::<bool>("pretty")?.unwrap_or(false);
+    let encoded = if pretty {
+        serde_json::to_string_pretty(value)
+    } else {
+        serde_json::to_string(value)
+    };
+    encoded.map_err(|error| TeraError::message(error.to_string()))
 }
 
 /// Error types for template rendering operations
@@ -140,11 +99,25 @@ impl TemplateEngine {
         let substitutions = build_substitution_map(custom_substitutions)?;
         let ordered = ordered_substitutions(&substitutions);
 
+        let function_substitutions = ordered.clone();
         tera.register_function(
             "latex_substitute",
-            LatexSubstituteFunction::new(ordered.clone()),
+            move |kwargs: Kwargs, _state: &TeraState| -> TeraResult<Value> {
+                let input = extract_substitution_input(&kwargs)?;
+                let substituted =
+                    substitute_latex_to_text_with_ordered(&input, &function_substitutions);
+                Ok(Value::from(substituted))
+            },
         );
-        tera.register_filter("latex_substitute", LatexSubstituteFilter::new(ordered));
+
+        tera.register_filter(
+            "latex_substitute",
+            move |value: &str, _kwargs: Kwargs, _state: &TeraState| -> String {
+                substitute_latex_to_text_with_ordered(value, &ordered)
+            },
+        );
+
+        tera.register_filter("json_encode", json_encode_filter);
 
         Ok(Self {
             tera,

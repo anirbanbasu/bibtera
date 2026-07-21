@@ -634,7 +634,7 @@ fn e2e_transform_latex_substitution_map_001_applies_custom_overrides() {
     let template_path = fixture_dir.join("template_latex_substitution.md");
     fs::write(
         &template_path,
-        "{{ latex_substitute(value=\"A \\textemdash B\") }}\n",
+        "{{ latex_substitute(value=\"A \\\\textemdash B\") }}\n",
     )
     .expect("write latex substitute template");
 

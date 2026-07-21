@@ -104,6 +104,24 @@
             ]
         },
         {
+            "id": "E2E-TRANSFORM-FILE-NAME-COLLISION-002",
+            "command": "transform --file-name-strategy slugify",
+            "objective": "Verify that declining the overwrite prompt for a pre-existing file does not mark that file name as reserved for same-run collision disambiguation.",
+            "requirements": [
+                "FUNC-2.1.3",
+                "IF-CLI-1.7"
+            ],
+            "fixtures": [
+                "inline_colliding_slugify_keys_bib",
+                "preexisting_output_file"
+            ],
+            "expected_outcomes": [
+                "Declining the overwrite prompt for the first colliding entry does not reserve its file name.",
+                "The second colliding entry targets the same pre-existing file name directly, without being disambiguated or misreported as a same-run collision.",
+                "Accepting the second entry's own overwrite prompt replaces the pre-existing file with that entry's rendered content."
+            ]
+        },
+        {
             "id": "E2E-TRANSFORM-SINGLE-001",
             "command": "transform --single",
             "objective": "Verify that single mode renders one output file for the selected entry set.",

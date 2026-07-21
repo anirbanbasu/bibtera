@@ -245,7 +245,6 @@ fn render_entries(
                 entry.key, generated_filename, filename
             );
         }
-        used_filenames.insert(filename.clone());
 
         let output_path = PathBuf::from(&config.output).join(&filename);
 
@@ -259,6 +258,10 @@ fn render_entries(
         }
 
         if config.dry_run {
+            // The filename is only reserved once it is actually emitted, so a
+            // later entry does not get disambiguated against a name that was
+            // merely computed for a skipped entry.
+            used_filenames.insert(filename.clone());
             println!("{} -> {}", entry.key, filename);
             if let Some(pb) = &progress {
                 pb.set_message(stats.files_generated.to_string());
@@ -275,6 +278,8 @@ fn render_entries(
             }
             continue;
         }
+
+        used_filenames.insert(filename.clone());
 
         let rendered = template_engine
             .render_entry(template_name, entry)

@@ -329,7 +329,7 @@ fn e2e_transform_file_name_collision_001_disambiguates_colliding_slugified_keys(
 
     assert!(output.status.success(), "{}", stderr_text(&output));
     assert!(
-        stderr_text(&output).to_lowercase().contains("collision"),
+        stderr_text(&output).contains("Warning: Output filename collision"),
         "{}",
         stderr_text(&output)
     );
@@ -340,6 +340,71 @@ fn e2e_transform_file_name_collision_001_disambiguates_colliding_slugified_keys(
         .expect("read disambiguated second colliding file");
     assert!(first.contains("Alpha"));
     assert!(second.contains("Beta"));
+
+    let _ = fs::remove_dir_all(&fixture_dir);
+    let _ = fs::remove_dir_all(&output_dir);
+}
+
+#[test]
+fn e2e_transform_file_name_collision_002_declined_overwrite_does_not_poison_tracking() {
+    let fixture_dir = unique_test_dir("e2e_transform_file_name_collision_declined");
+    fs::create_dir_all(&fixture_dir).expect("create fixture dir");
+
+    let input_path = fixture_dir.join("input_colliding_keys.bib");
+    fs::write(
+        &input_path,
+        concat!(
+            "@article{proj.a2026,\n",
+            "  title = {Alpha},\n",
+            "  author = {Doe, John},\n",
+            "  year = {2026}\n",
+            "}\n",
+            "\n",
+            "@article{proj:a2026,\n",
+            "  title = {Beta},\n",
+            "  author = {Smith, Jane},\n",
+            "  year = {2026}\n",
+            "}\n"
+        ),
+    )
+    .expect("write colliding-keys input bib");
+
+    let template_path = fixture_dir.join("template_title.md");
+    fs::write(&template_path, "{{ title }}\n").expect("write title template");
+
+    let output_dir = unique_test_dir("e2e_transform_file_name_collision_declined_output");
+    fs::create_dir_all(&output_dir).expect("create output dir");
+    let existing_file = output_dir.join("proj_a2026.md");
+    fs::write(&existing_file, "sentinel output\n").expect("write sentinel output");
+
+    // Decline the first entry's overwrite prompt, then accept the second's,
+    // since both colliding keys target the same pre-existing file name.
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input_path.to_str().expect("input path"),
+            "-o",
+            output_dir.to_str().expect("output dir"),
+            "-t",
+            template_path.to_str().expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+        ],
+        Some("n\ny\n"),
+    );
+
+    assert!(output.status.success(), "{}", stderr_text(&output));
+    assert!(stderr_text(&output).contains("Warning: Skipped existing file:"));
+    assert!(
+        !stderr_text(&output).contains("Warning: Output filename collision"),
+        "declined overwrite must not be treated as a same-run collision: {}",
+        stderr_text(&output)
+    );
+    assert!(!output_dir.join("proj_a2026-2.md").exists());
+
+    let final_content = fs::read_to_string(&existing_file).expect("read final file content");
+    assert!(final_content.contains("Beta"));
 
     let _ = fs::remove_dir_all(&fixture_dir);
     let _ = fs::remove_dir_all(&output_dir);

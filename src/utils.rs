@@ -13,26 +13,6 @@ use uuid::Uuid;
 
 use crate::config::FileNameStrategy;
 
-/// Securely read a file, preventing path traversal attacks
-pub fn safe_read<P: AsRef<Path>>(path: P) -> Result<String> {
-    let path = path.as_ref();
-
-    // Get canonical path to prevent path traversal.
-    let canonical = path.canonicalize().context("Failed to resolve path")?;
-
-    // Resolve parent to force normalisation and surface invalid paths.
-    if let Some(parent) = canonical.parent() {
-        let parent_canonical = parent
-            .canonicalize()
-            .context("Failed to resolve parent directory")?;
-
-        // Placeholder for an allowlist root check.
-        let _ = parent_canonical;
-    }
-
-    fs::read_to_string(&canonical).context(format!("Failed to read file: {}", path.display()))
-}
-
 /// Securely write content to a file, creating parent directories as needed
 pub fn safe_write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C) -> Result<()> {
     let path = path.as_ref();
@@ -82,19 +62,6 @@ pub fn join_path<P1: AsRef<Path>, P2: AsRef<Path>>(base: P1, child: P2) -> PathB
     base.as_ref().join(child.as_ref())
 }
 
-/// Create a temporary file
-pub fn create_temp_file(prefix: &str, suffix: &str) -> Result<(PathBuf, fs::File)> {
-    let temp_dir = std::env::temp_dir();
-    let stem_value = stem(Path::new(suffix)).unwrap_or_else(|| "file".to_string());
-    let filename = format!("{}_{}", prefix, stem_value);
-    let path = temp_dir.join(filename);
-
-    let file = fs::File::create(&path)
-        .context(format!("Failed to create temp file: {}", path.display()))?;
-
-    Ok((path, file))
-}
-
 /// Format a list of strings as a bullet list
 pub fn format_bullet_list(items: &[String]) -> String {
     if items.is_empty() {
@@ -119,15 +86,6 @@ pub fn format_ordered_list(items: &[String]) -> String {
         result.push_str(format!("{}. {}\n", i + 1, item).as_str());
     }
     result
-}
-
-/// Truncate a string to a maximum length, adding ellipsis if needed
-pub fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        return s.to_string();
-    }
-
-    format!("{}...", &s[..max_len.saturating_sub(3)])
 }
 
 /// Sanitize a string for use as a filename
@@ -263,13 +221,6 @@ mod tests {
         assert_eq!(stem("file.txt"), Some("file".to_string()));
         assert_eq!(stem("path/to/file.txt"), Some("file".to_string()));
         assert_eq!(stem("noextension"), Some("noextension".to_string()));
-    }
-
-    #[test]
-    fn test_truncate() {
-        assert_eq!(truncate("hello", 10), "hello");
-        assert_eq!(truncate("hello world", 5), "he...");
-        assert_eq!(truncate("hello", 5), "hello");
     }
 
     #[test]

@@ -92,14 +92,35 @@ pub fn join_path<P1: AsRef<Path>, P2: AsRef<Path>>(base: P1, child: P2) -> PathB
     base.as_ref().join(child.as_ref())
 }
 
+/// Reject temp file name components that contain path separators, so that a
+/// prefix or suffix can never move the created file out of the temporary
+/// directory (NON-FUNC-4). Both `/` and `\` are rejected on every platform
+/// for consistent cross-platform behaviour.
+fn validate_temp_name_component(label: &str, value: &str) -> Result<()> {
+    if value.contains(['/', '\\']) {
+        anyhow::bail!(
+            "The temp file {} must not contain path separators: {}",
+            label,
+            value
+        );
+    }
+
+    Ok(())
+}
+
 /// Create a uniquely named temporary file in the system temporary directory.
 ///
 /// The suffix is appended verbatim after the unique name component, so an
-/// extension such as `.txt` is preserved in the created file name. The file
-/// is opened with `create_new` (exclusive creation), so an existing file is
+/// extension such as `.txt` is preserved in the created file name. Neither
+/// the prefix nor the suffix may contain path separators, so the file is
+/// always created directly inside the temporary directory. The file is
+/// opened with `create_new` (exclusive creation), so an existing file is
 /// never truncated; on a name collision a different unique name is tried.
 pub fn create_temp_file(prefix: &str, suffix: &str) -> Result<(PathBuf, fs::File)> {
     const MAX_ATTEMPTS: u32 = 1024;
+
+    validate_temp_name_component("prefix", prefix)?;
+    validate_temp_name_component("suffix", suffix)?;
 
     let temp_dir = std::env::temp_dir();
     let pid = std::process::id();
@@ -413,6 +434,23 @@ mod tests {
 
         fs::remove_file(&first_path).ok();
         fs::remove_file(&second_path).ok();
+    }
+
+    #[test]
+    fn test_create_temp_file_rejects_path_separators_in_prefix_and_suffix() {
+        for (prefix, suffix) in [
+            ("../escape", ".txt"),
+            ("/etc/bibtera", ".txt"),
+            ("bibtera", "/etc/passwd"),
+            ("bibtera", "..\\escape.txt"),
+        ] {
+            let error = create_temp_file(prefix, suffix)
+                .expect_err("separator-bearing components must be rejected");
+            assert!(
+                format!("{error:#}").contains("must not contain path separators"),
+                "unexpected error for ({prefix}, {suffix}): {error:#}"
+            );
+        }
     }
 
     #[test]

@@ -20,7 +20,6 @@ fn unique_temp_file(stem: &str, extension: &str) -> PathBuf {
     path
 }
 
-#[cfg(unix)]
 fn unique_temp_dir(label: &str) -> PathBuf {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -599,8 +598,7 @@ fn it_single_mode_context_001_supports_combined_output_naming_inputs() {
     assert_eq!(entries.len(), 2);
 
     let mut engine = TemplateEngine::new().expect("create engine");
-    let temp_output_dir = std::env::temp_dir().join("bibtera_tests_single_mode_test");
-    fs::create_dir_all(&temp_output_dir).ok();
+    let temp_output_dir = unique_temp_dir("single_mode_test");
 
     let temp_template_file = temp_output_dir.join("mytemplate.md");
     let template_content = "# All References\n{% for entry in entries %}\n- {{ entry.key }}: {{ entry.title }}\n{% endfor %}\n";

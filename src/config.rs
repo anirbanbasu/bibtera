@@ -183,7 +183,10 @@ impl TransformConfig {
 
     /// Validate transform config.
     pub fn validate(&self) -> Result<()> {
-        if !self.input.ends_with(".bib") {
+        if !Path::new(&self.input)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+        {
             return Err(ConfigError::Validation(format!(
                 "Input must be a .bib file: {}",
                 self.input
@@ -254,7 +257,10 @@ impl InfoConfig {
     /// Validate info config.
     pub fn validate(&self) -> Result<()> {
         if let Some(input) = &self.input {
-            if !input.ends_with(".bib") {
+            if !Path::new(input)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("bib"))
+            {
                 return Err(ConfigError::Validation(format!(
                     "Input must be a .bib file: {}",
                     input
@@ -394,5 +400,60 @@ mod tests {
         };
 
         assert!(filter.has_explicit_selection());
+    }
+
+    #[test]
+    fn test_transform_config_validate_accepts_mixed_case_bib_extension() {
+        let (input, _file) =
+            crate::utils::create_temp_file("bibtera_config_tests_transform", ".BIB")
+                .expect("create temp .BIB file");
+
+        let cfg = TransformConfig {
+            input: input.to_string_lossy().into_owned(),
+            output: std::env::temp_dir().to_string_lossy().into_owned(),
+            template: input.to_string_lossy().into_owned(),
+            filter: FilterConfig::default(),
+            dry_run: true,
+            overwrite: false,
+            file_name_strategy: FileNameStrategy::default(),
+            single: false,
+            latex_substitution_map: None,
+            verbose: false,
+        };
+
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn test_transform_config_validate_rejects_non_bib_extension() {
+        let cfg = TransformConfig {
+            input: "refs.txt".to_string(),
+            output: std::env::temp_dir().to_string_lossy().into_owned(),
+            template: "template.md".to_string(),
+            filter: FilterConfig::default(),
+            dry_run: true,
+            overwrite: false,
+            file_name_strategy: FileNameStrategy::default(),
+            single: false,
+            latex_substitution_map: None,
+            verbose: false,
+        };
+
+        let error = cfg.validate().expect_err("non-.bib input must be rejected");
+        assert!(format!("{error:#}").contains("must be a .bib file"));
+    }
+
+    #[test]
+    fn test_info_config_validate_accepts_mixed_case_bib_extension() {
+        let (input, _file) = crate::utils::create_temp_file("bibtera_config_tests_info", ".Bib")
+            .expect("create temp .Bib file");
+
+        let cfg = InfoConfig {
+            input: Some(input.to_string_lossy().into_owned()),
+            filter: FilterConfig::default(),
+            verbose: false,
+        };
+
+        assert!(cfg.validate().is_ok());
     }
 }

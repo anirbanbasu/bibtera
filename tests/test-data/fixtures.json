@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-07-21-001",
+    "version": "v2026-07-21-002",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -150,6 +150,10 @@
         "symlinked_escape_directory": {
             "kind": "generated-state",
             "purpose": "Runtime-created directory containing a symbolic link whose target resolves outside the scanned directory, used for path-traversal rejection scenarios."
+        },
+        "mixed_case_bib_extension_directory": {
+            "kind": "generated-state",
+            "purpose": "Runtime-created directory containing .bib files with lowercase, uppercase and mixed-case extensions, used for case-insensitive extension scanning scenarios."
         }
     }
 }

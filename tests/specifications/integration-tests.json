@@ -1,6 +1,6 @@
 {
     "$schema": "./schemas/scenario-catalogue.schema.json",
-    "version": "v2026-07-21-001",
+    "version": "v2026-07-21-002",
     "scope": "integration",
     "description": "Scenario catalogue for cross-module behaviours that combine parser, template engine and CLI parsing concerns.",
     "required_fields": [
@@ -318,6 +318,19 @@
             "expected_outcomes": [
                 "Directory parsing fails with an error identifying that the file resolves outside the permitted directory.",
                 "No entry content sourced from outside the scanned directory is returned."
+            ]
+        },
+        {
+            "id": "IT-DIRECTORY-EXTENSION-CASE-001",
+            "objective": "Verify that directory parsing recognises .bib files regardless of the case of their extension.",
+            "requirements": [
+                "NON-FUNC-8"
+            ],
+            "fixtures": [
+                "mixed_case_bib_extension_directory"
+            ],
+            "expected_outcomes": [
+                "Files with lowercase, uppercase and mixed-case .bib extensions are all included in the parsed entries."
             ]
         }
     ]

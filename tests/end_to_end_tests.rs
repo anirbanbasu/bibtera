@@ -1296,3 +1296,187 @@ fn e2e_info_large_dataset_001_reports_representative_selected_entries() {
     assert!(json.get("DBLP:conf/iclr/00010025").is_some());
     assert!(json.get("DBLP:conf/iclr/000100CLH025").is_some());
 }
+
+/// Returns whether a usable `zola` binary is on the `PATH`.
+///
+/// When `BIBTERA_REQUIRE_ZOLA` is set, a missing binary fails the test instead of skipping it, so
+/// that continuous integration cannot silently pass without exercising Zola.
+fn zola_available() -> bool {
+    let available = Command::new("zola")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+
+    if !available {
+        assert!(
+            std::env::var_os("BIBTERA_REQUIRE_ZOLA").is_none(),
+            "zola is required (BIBTERA_REQUIRE_ZOLA is set) but was not found on the PATH"
+        );
+        eprintln!("skipping: zola is not installed");
+    }
+    available
+}
+
+/// Creates a minimal Zola 0.23 site that defines a `cite` component and returns its root.
+fn scaffold_zola_site(stem: &str) -> PathBuf {
+    let site = unique_test_dir(stem);
+    let bibliography = site.join("content").join("bibliography");
+    fs::create_dir_all(&bibliography).expect("create bibliography dir");
+    fs::create_dir_all(site.join("templates")).expect("create templates dir");
+
+    fs::write(
+        site.join("config.toml"),
+        "base_url = \"https://example.com\"\ncompile_sass = false\nbuild_search_index = false\n",
+    )
+    .expect("write zola config");
+    fs::write(
+        bibliography.join("_index.md"),
+        "+++\ntitle = \"Bibliography\"\nsort_by = \"title\"\n+++\n",
+    )
+    .expect("write section index");
+    fs::write(
+        site.join("templates").join("index.html"),
+        "<html><body>{{ section.title }}</body></html>",
+    )
+    .expect("write index template");
+    fs::write(
+        site.join("templates").join("section.html"),
+        "<html><body>{{ section.title }}</body></html>",
+    )
+    .expect("write section template");
+    fs::write(
+        site.join("templates").join("page.html"),
+        "<html><body><h1>{{ page.title | safe }}</h1>{{ page.content | safe }}</body></html>",
+    )
+    .expect("write page template");
+    fs::write(
+        site.join("templates").join("components.html"),
+        "{% component cite(key: string) -%}\n<cite data-key=\"{{ key }}\">{{ key }}</cite>\n{%- endcomponent %}\n",
+    )
+    .expect("write components template");
+
+    site
+}
+
+fn run_zola_build(site: &Path) -> Output {
+    Command::new("zola")
+        .arg("--root")
+        .arg(site)
+        .arg("build")
+        .output()
+        .expect("run zola build")
+}
+
+#[test]
+fn e2e_zola_build_001_generated_markdown_builds_in_zola_with_components() {
+    if !zola_available() {
+        return;
+    }
+
+    let site = scaffold_zola_site("e2e_zola_build");
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            examples_dir()
+                .join("input_sample.bib")
+                .to_str()
+                .expect("sample bib path"),
+            "-o",
+            site.join("content")
+                .join("bibliography")
+                .to_str()
+                .expect("content dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry_zola.md")
+                .to_str()
+                .expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let build = run_zola_build(&site);
+    assert!(
+        build.status.success(),
+        "zola build failed: {}{}",
+        stdout_text(&build),
+        stderr_text(&build)
+    );
+    assert!(stderr_text(&build).contains("Creating 6 pages"));
+
+    let page = fs::read_to_string(
+        site.join("public")
+            .join("bibliography")
+            .join("smith2020machine")
+            .join("index.html"),
+    )
+    .expect("read built page");
+    assert!(page.contains("<h1>Machine Learning for Natural Language Processing</h1>"));
+    assert!(page.contains("John Smith, Jane Doe"));
+    // The raw-escaped component call must have been resolved by Zola, not left verbatim.
+    assert!(page.contains("<cite data-key=\"smith2020machine\">smith2020machine</cite>"));
+    assert!(!page.contains("<cite key="));
+
+    let _ = fs::remove_dir_all(&site);
+}
+
+#[test]
+fn e2e_zola_front_matter_002_special_characters_remain_valid_toml() {
+    if !zola_available() {
+        return;
+    }
+
+    let site = scaffold_zola_site("e2e_zola_front_matter");
+    let input = site.join("input.bib");
+    fs::write(
+        &input,
+        "@article{quoted2024,\n  author = {Ada Lovelace and Charles Babbage},\n  title = {The \"Analytical\" Engine: A [Study] # 1},\n  year = {2024}\n}\n",
+    )
+    .expect("write bib input");
+
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input.to_str().expect("input path"),
+            "-o",
+            site.join("content")
+                .join("bibliography")
+                .to_str()
+                .expect("content dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry_zola.md")
+                .to_str()
+                .expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let build = run_zola_build(&site);
+    assert!(
+        build.status.success(),
+        "zola build failed: {}{}",
+        stdout_text(&build),
+        stderr_text(&build)
+    );
+
+    let page = fs::read_to_string(
+        site.join("public")
+            .join("bibliography")
+            .join("quoted2024")
+            .join("index.html"),
+    )
+    .expect("read built page");
+    assert!(page.contains("The \"Analytical\" Engine: A [Study] # 1"));
+
+    let _ = fs::remove_dir_all(&site);
+}

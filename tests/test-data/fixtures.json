@@ -1,6 +1,6 @@
 {
     "$schema": "../specifications/schemas/fixture-catalogue.schema.json",
-    "version": "v2026-07-21-002",
+    "version": "v2026-10-05-001",
     "description": "Shared fixture catalogue for integration and end-to-end test specifications.",
     "fixtures": {
         "input_sample_bib": {
@@ -154,6 +154,19 @@
         "mixed_case_bib_extension_directory": {
             "kind": "generated-state",
             "purpose": "Runtime-created directory containing .bib files with lowercase, uppercase and mixed-case extensions, used for case-insensitive extension scanning scenarios."
+        },
+        "template_entry_zola_md": {
+            "kind": "file",
+            "path": "examples/template_entry_zola.md",
+            "purpose": "Zola-flavoured Markdown template with TOML front matter and a raw-escaped component call for downstream Zola processing."
+        },
+        "zola_site_scaffold": {
+            "kind": "generated-state",
+            "purpose": "Minimal Zola 0.23 site, created per test, that defines a cite component and page, section and index templates."
+        },
+        "inline_zola_special_title": {
+            "kind": "inline-data",
+            "purpose": "BibTeX entry whose title contains double quotes, square brackets and a hash character to exercise TOML front matter escaping."
         }
     }
 }

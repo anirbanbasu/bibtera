@@ -444,6 +444,44 @@
                 "The command exits successfully for the large input fixture.",
                 "The output includes representative parsed key-value information for the selected entries in that file."
             ]
+        },
+        {
+            "id": "E2E-ZOLA-BUILD-001",
+            "command": "transform with a Zola template, followed by zola build",
+            "objective": "Verify that Markdown generated from a Zola-flavoured template builds in Zola 0.23 and that raw-escaped component calls are resolved by Zola.",
+            "requirements": [
+                "FUNC-2",
+                "FUNC-2.2"
+            ],
+            "fixtures": [
+                "input_sample_bib",
+                "template_entry_zola_md",
+                "zola_site_scaffold"
+            ],
+            "expected_outcomes": [
+                "Both bibtera and zola build exit successfully.",
+                "Zola reports that all generated entries were created as pages.",
+                "The built pages contain the entry title and authors.",
+                "The cite component call passed through bibtera verbatim is rendered by Zola rather than left in the output."
+            ]
+        },
+        {
+            "id": "E2E-ZOLA-FRONT-MATTER-002",
+            "command": "transform with a Zola template and a special-character title, followed by zola build",
+            "objective": "Verify that field values containing quotes and TOML-significant characters remain valid TOML front matter when encoded with json_encode.",
+            "requirements": [
+                "FUNC-2",
+                "FUNC-6"
+            ],
+            "fixtures": [
+                "inline_zola_special_title",
+                "template_entry_zola_md",
+                "zola_site_scaffold"
+            ],
+            "expected_outcomes": [
+                "zola build exits successfully, so the front matter parses as valid TOML.",
+                "The built page shows the title with its special characters intact."
+            ]
         }
     ]
 }

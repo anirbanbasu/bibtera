@@ -156,6 +156,11 @@ Following the [documentation of the Tera template engine](https://keats.github.i
 > [!TIP]
 > What if the template syntax conflicts with the syntax of the output format you want to generate? For instance, this will happen if the output you want to generate also uses Tera or Tera-like syntax to be processed by something else down the pipeline, such as Zola. Use the `{% raw %}...{% endraw %}` syntax, see [Tera documentation](https://keats.github.io/tera/docs/#raw), to escape the Tera syntax in the template and have it appear verbatim in the output.
 
+The `examples/template_entry_zola.md` template generates Zola pages with TOML front matter, and calls a Zola component, `{{ <cite key="..." /> }}`, escaped with `{% raw %}...{% endraw %}`. Zola 0.23 replaced shortcodes with components, which you define with `{% component cite(key: string) %}...{% endcomponent %}` in any file under your site's `templates` directory. The end-to-end tests build a site from this template when `zola` is on the `PATH`.
+
+> [!IMPORTANT]
+> BibTera uses Tera 2, as does Zola 0.23 and later. Templates written for Tera 1 may need migrating; see the [Tera 2 migration guide](https://github.com/Keats/tera2/blob/master/MIGRATION.md). Notably, Tera 2 no longer ships a `json_encode` filter, but BibTera provides one so that templates can still use it, for example to write valid TOML front matter.
+
 ### LaTeX substitution helper
 
 BibTera registers a helper named `latex_substitute` in templates as both a function and a filter. It applies LaTeX-to-plaintext substitutions using the built-in map, optionally overridden via `--latex-substitution-map`.

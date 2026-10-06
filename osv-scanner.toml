@@ -1,0 +1,7 @@
+# OSV-Scanner configuration. Picked up automatically from the repository root
+# by the OSV-Scanner workflow (.github/workflows/osv-scanner.yml).
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2027-03-31
+reason = "The paste crate is unmaintained, not exploitable. It is a transitive dependency of biblatex, which has no plan to replace it (https://github.com/typst/biblatex/issues/99). Documented in CHANGELOG.md. Revisit by 2027-03-31."

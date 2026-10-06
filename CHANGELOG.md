@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- None documented yet.
+
+### Changed
+
+- None documented yet.
+
+### Deprecated
+
+- None documented yet.
+
+### Removed
+
+- None documented yet.
+
+### Fixed
+
+- None documented yet.
+
+### Security
+
+- None documented yet.
+
+## [0.1.3] - 2026-10-06
+
+### Added
+
 - An example template, `examples/template_entry_zola.md`, that generates Zola pages with TOML front matter and passes a Zola 0.23 component call through to Zola using `{% raw %}`.
 - End-to-end tests that build the generated Markdown with Zola 0.23, checking that pages are built, components are resolved and special characters in titles remain valid TOML. These tests are skipped when `zola` is not installed, unless `BIBTERA_REQUIRE_ZOLA` is set.
 - An end-to-end regression test that HTML-significant characters in field values are never autoescaped.
@@ -92,7 +118,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - There is a reported vulnerability with unknown impact in a downstream dependency, `paste`, which is no longer maintained. See: [RUSTSEC-2024-0436](https://osv.dev/RUSTSEC-2024-0436). This vulnerability cannot be addressed until the dependency -- `biblatex` -- using `paste` changes it to a maintained alternative. However, as of now, there is no such plan as discussed in the [issue 99](https://github.com/typst/biblatex/issues/99).
 
 
-[unreleased]: https://github.com/anirbanbasu/bibtera/compare/v0.1.2...HEAD
+[unreleased]: https://github.com/anirbanbasu/bibtera/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/anirbanbasu/bibtera/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/anirbanbasu/bibtera/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/anirbanbasu/bibtera/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/anirbanbasu/bibtera/compare/v0.0.1...v0.1.0

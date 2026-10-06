@@ -167,6 +167,15 @@
         "inline_zola_special_title": {
             "kind": "inline-data",
             "purpose": "BibTeX entry whose title contains double quotes, square brackets and a hash character to exercise TOML front matter escaping."
+        },
+        "template_entry_html": {
+            "kind": "file",
+            "path": "examples/template_entry.html",
+            "purpose": "HTML output template used to verify that autoescaping stays disabled."
+        },
+        "inline_html_significant_title": {
+            "kind": "inline-data",
+            "purpose": "BibTeX entry whose title contains an ampersand, angle brackets and double quotes."
         }
     }
 }

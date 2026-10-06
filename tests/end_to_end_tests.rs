@@ -1480,3 +1480,42 @@ fn e2e_zola_front_matter_002_special_characters_remain_valid_toml() {
 
     let _ = fs::remove_dir_all(&site);
 }
+
+#[test]
+fn e2e_transform_autoescape_001_does_not_escape_html_significant_characters() {
+    let dir = unique_test_dir("e2e_transform_autoescape");
+    fs::create_dir_all(&dir).expect("create test dir");
+    let input = dir.join("input.bib");
+    fs::write(
+        &input,
+        "@article{escape2024,\n  author = {Ada Lovelace},\n  title = {Fish & Chips <em>\"quoted\"</em>},\n  year = {2024}\n}\n",
+    )
+    .expect("write bib input");
+
+    let output = run_bibtera(
+        &[
+            "transform",
+            "-i",
+            input.to_str().expect("input path"),
+            "-o",
+            dir.to_str().expect("output dir"),
+            "-t",
+            examples_dir()
+                .join("template_entry.html")
+                .to_str()
+                .expect("template path"),
+            "--file-name-strategy",
+            "slugify",
+        ],
+        None,
+    );
+    assert!(output.status.success(), "{}", stderr_text(&output));
+
+    let rendered = fs::read_to_string(dir.join("escape2024.html")).expect("read rendered output");
+    assert!(rendered.contains("<h1>Fish & Chips <em>\"quoted\"</em></h1>"));
+    assert!(!rendered.contains("&amp;"));
+    assert!(!rendered.contains("&lt;"));
+    assert!(!rendered.contains("&quot;"));
+
+    let _ = fs::remove_dir_all(&dir);
+}

@@ -482,6 +482,24 @@
                 "zola build exits successfully, so the front matter parses as valid TOML.",
                 "The built page shows the title with its special characters intact."
             ]
+        },
+        {
+            "id": "E2E-TRANSFORM-AUTOESCAPE-001",
+            "command": "transform with an HTML template and a title containing HTML-significant characters",
+            "objective": "Verify that Tera autoescaping never activates, so HTML-significant characters in field values are rendered verbatim.",
+            "requirements": [
+                "FUNC-6",
+                "FUNC-6.1"
+            ],
+            "fixtures": [
+                "inline_html_significant_title",
+                "template_entry_html"
+            ],
+            "expected_outcomes": [
+                "The command exits successfully.",
+                "The rendered title contains the ampersand, angle brackets and double quotes unchanged.",
+                "The output contains no HTML character entities for those characters."
+            ]
         }
     ]
 }

@@ -8,11 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
-- None documented yet.
+- An example template, `examples/template_entry_zola.md`, that generates Zola pages with TOML front matter and passes a Zola 0.23 component call through to Zola using `{% raw %}`.
+- End-to-end tests that build the generated Markdown with Zola 0.23, checking that pages are built, components are resolved and special characters in titles remain valid TOML. These tests are skipped when `zola` is not installed, unless `BIBTERA_REQUIRE_ZOLA` is set.
+- An end-to-end regression test that HTML-significant characters in field values are never autoescaped.
 
 ### Changed
 
-- None documented yet.
+- The Rust workflow installs Zola 0.23.6, verified by its SHA-256 digest, so that the Zola end-to-end tests run in continuous integration.
+- Documented in the README that BibTera uses Tera 2, how to migrate Tera 1 templates, and how Zola 0.23 components replace shortcodes.
+- Upgraded dependencies.
+- Bumped the patch version to 0.1.3.
 
 ### Deprecated
 

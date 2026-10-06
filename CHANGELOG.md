@@ -11,13 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - An example template, `examples/template_entry_zola.md`, that generates Zola pages with TOML front matter and passes a Zola 0.23 component call through to Zola using `{% raw %}`.
 - End-to-end tests that build the generated Markdown with Zola 0.23, checking that pages are built, components are resolved and special characters in titles remain valid TOML. These tests are skipped when `zola` is not installed, unless `BIBTERA_REQUIRE_ZOLA` is set.
 - An end-to-end regression test that HTML-significant characters in field values are never autoescaped.
+- A `--verbose`/`-v` option for `info` that shows error cause chains.
 
 ### Changed
 
 - The Rust workflow installs Zola 0.23.6, verified by its SHA-256 digest, so that the Zola end-to-end tests run in continuous integration.
 - Documented in the README that BibTera uses Tera 2, how to migrate Tera 1 templates, and how Zola 0.23 components replace shortcodes.
+- **Breaking:** `--file-name-strategy uuid7` is now `--file-name-strategy uuid8`, because the hash-derived file names are UUIDv8 (RFC 9562 custom profile), not UUIDv7.
 - Upgraded dependencies.
-- Bumped the patch version to 0.1.3.
 
 ### Deprecated
 
@@ -29,11 +30,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Fixed
 
-- None documented yet.
+- `latex_substitute` no longer corrupts longer, unmapped LaTeX commands that share a prefix with a short mapped one, for example `\LaTeX`, `\omega`, `\theta` and `\label`.
+- Whitespace runs with line breaks in BibTeX field values collapse to a single space, and author lists are parsed with biblatex name handling: brace-protected names, case-insensitive `AND` separators, line-wrapped lists, nobiliary particles and Jr-style suffixes.
+- `info` no longer advertises `fields.author`, `fields.title` or `fields.year`, and prints an empty map with a warning when a selection matches no entries.
+- Non-ASCII titles no longer cause a panic when truncated in verbose output, and temporary files are created exclusively under unique names.
+- Colliding output file names are disambiguated with a numeric suffix and a warning, instead of silently overwriting an earlier file.
+- Input validation and directory scanning accept `.bib` extensions in any case, such as `refs.BIB` or `refs.Bib`.
 
 ### Security
 
-- None documented yet.
+- Symlinked `.bib` files can no longer escape the scanned directory.
 
 ## [0.1.2] - 2026-06-20
 
